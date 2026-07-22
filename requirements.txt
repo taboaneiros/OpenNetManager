@@ -1,4 +1,4 @@
-Django==5.1.15
+Django==6.0.7
 djangorestframework==3.16.0
 django-environ==0.11.2
 paramiko==3.4.1
