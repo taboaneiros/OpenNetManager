@@ -1,0 +1,217 @@
+
+{% extends "base.html" %}
+{% block title %}Dashboard | OpenNetManager{% endblock %}
+{% block content %}
+<style>
+  .subtitle {
+    margin: 0 0 24px;
+    color: #6b7280;
+    font-size: 18px;
+  }
+
+  .toolbar {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr auto auto;
+    gap: 12px;
+    margin-bottom: 24px;
+    align-items: end;
+  }
+
+  .field label {
+    display: block;
+    font-size: 13px;
+    margin-bottom: 6px;
+    color: #6b7280;
+  }
+
+  .field input,
+  .field select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    background: #fff;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1.05fr 1.95fr;
+    gap: 24px;
+  }
+
+  .device-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .device-item:last-child {
+    border-bottom: 0;
+  }
+
+  .device-meta {
+    display: grid;
+    gap: 4px;
+  }
+
+  .status-online {
+    color: #166534;
+    font-weight: 700;
+  }
+
+  .status-offline {
+    color: #991b1b;
+    font-weight: 700;
+  }
+
+  .table-wrapper {
+    overflow-x: auto;
+  }
+
+  @media (max-width: 1080px) {
+    .toolbar {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .toolbar {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<h1 class="section-title">Dashboard</h1>
+<p class="subtitle">Painel operacional com busca, filtros, ordenação e coleta manual.</p>
+
+<div class="stats-grid">
+  <div class="card">
+    <span class="stat-label">Clientes online</span>
+    <span class="stat-value">{{ online_clients }}</span>
+  </div>
+  <div class="card">
+    <span class="stat-label">Clientes offline</span>
+    <span class="stat-value">{{ offline_clients }}</span>
+  </div>
+  <div class="card">
+    <span class="stat-label">Dispositivos</span>
+    <span class="stat-value">{{ devices|length }}</span>
+  </div>
+  <div class="card">
+    <span class="stat-label">Última coleta</span>
+    <span class="stat-value" style="font-size: 18px;">
+      {% if latest_snapshot %}
+        {{ latest_snapshot.timestamp|date:"d \d\e F \d\e Y \à\s H:i" }}
+      {% else %}
+        N/A
+      {% endif %}
+    </span>
+  </div>
+</div>
+
+<form method="get" class="toolbar">
+  <div class="field">
+    <label for="id_q">Busca</label>
+    <input id="id_q" name="q" type="text" value="{{ query }}" placeholder="Hostname, MAC, IP ou dispositivo">
+  </div>
+  <div class="field">
+    <label for="id_status">Status</label>
+    <select id="id_status" name="status">
+      <option value="" {% if not status_filter %}selected{% endif %}>Todos</option>
+      <option value="online" {% if status_filter == "online" %}selected{% endif %}>Online</option>
+      <option value="offline" {% if status_filter == "offline" %}selected{% endif %}>Offline</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="id_ordering">Ordenação</label>
+    <select id="id_ordering" name="ordering">
+      <option value="hostname" {% if ordering == "hostname" %}selected{% endif %}>Hostname</option>
+      <option value="mac" {% if ordering == "mac" %}selected{% endif %}>MAC</option>
+      <option value="ip" {% if ordering == "ip" %}selected{% endif %}>IP</option>
+      <option value="signal" {% if ordering == "signal" %}selected{% endif %}>Sinal</option>
+      <option value="status" {% if ordering == "status" %}selected{% endif %}>Status</option>
+    </select>
+  </div>
+  <button class="button" type="submit">Aplicar</button>
+  <a class="button button-secondary" href="{% url 'dashboard-export-clients' %}?q={{ query|urlencode }}&status={{ status_filter|urlencode }}&ordering={{ ordering|urlencode }}">Exportar CSV</a>
+</form>
+
+<div class="grid">
+  <div class="card">
+    <h2 style="margin-top: 0;">Dispositivos</h2>
+    {% for device in devices %}
+      <div class="device-item">
+        <div class="device-meta">
+          <a href="{% url 'dashboard-device-detail' device.id %}" style="text-decoration:none;">
+            <strong>{{ device.hostname }}</strong>
+          </a>
+          <span class="muted">{{ device.management_ip }} — {{ device.model }}</span>
+          <span class="{% if device.status == 'online' %}status-online{% else %}status-offline{% endif %}">
+            {{ device.status }}
+          </span>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <a class="button button-secondary" href="{% url 'dashboard-device-detail' device.id %}">Detalhes</a>
+          <form method="post" action="{% url 'dashboard-collect-device' device.id %}">
+            {% csrf_token %}
+            <button class="button" type="submit">Coletar</button>
+          </form>
+        </div>
+      </div>
+    {% empty %}
+      <p class="muted">Nenhum dispositivo cadastrado.</p>
+    {% endfor %}
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top: 0;">Clientes</h2>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Hostname</th>
+            <th>Dispositivo</th>
+            <th>MAC</th>
+            <th>IP</th>
+            <th>Sinal</th>
+            <th>RX</th>
+            <th>TX</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for client in clients %}
+            <tr>
+              <td>{{ client.hostname|default:"-" }}</td>
+              <td>{{ client.device.hostname }}</td>
+              <td>{{ client.mac }}</td>
+              <td>{{ client.ip|default:"-" }}</td>
+              <td>{{ client.signal }}</td>
+              <td>{{ client.rx }}</td>
+              <td>{{ client.tx }}</td>
+              <td>
+                {% if client.is_online %}
+                  <span class="chip">Online</span>
+                {% else %}
+                  <span class="chip chip-offline">Offline</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="8">Nenhum cliente encontrado com os filtros atuais.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Interfaces | OpenNetManager{% endblock %}
+{% block topbar_title %}Interfaces{% endblock %}
+{% block topbar_subtitle %}Estado atual das interfaces coletadas dos dispositivos monitorados.{% endblock %}
+
+{% block content %}
+<h1 class="section-title">Interfaces</h1>
+<p class="muted" style="margin-top:0;margin-bottom:16px;">
+  Visualização consolidada das interfaces e seus estados operacionais.
+</p>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Device</th>
+        <th>Interface</th>
+        <th>Status</th>
+        <th>Velocidade</th>
+        <th>Atualizado em</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for interface in interfaces %}
+        <tr>
+          <td>{{ interface.device.hostname }}</td>
+          <td>{{ interface.name }}</td>
+          <td>
+            {% if interface.status == 'up' %}
+              <span class="chip">Up</span>
+            {% else %}
+              <span class="chip chip-offline">{{ interface.status }}</span>
+            {% endif %}
+          </td>
+          <td>{{ interface.speed|default:"-" }}</td>
+          <td>{{ interface.updated_at }}</td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="5">Nenhuma interface encontrada.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,54 @@
+{% extends "admin/base.html" %}
+
+{% block title %}OpenNetManager Admin{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  #header {
+    background: #0f172a;
+    color: #e2e8f0;
+  }
+
+  #branding h1,
+  #branding h1 a:link,
+  #branding h1 a:visited {
+    color: #ffffff;
+    font-weight: 700;
+  }
+
+  .module h2,
+  .module caption,
+  .inline-group h2 {
+    background: #0f766e;
+  }
+
+  div.breadcrumbs {
+    background: #134e4a;
+  }
+
+  .button,
+  input[type=submit],
+  input[type=button],
+  .submit-row input,
+  a.button {
+    background: #0f766e;
+  }
+
+  .button:hover,
+  input[type=submit]:hover,
+  input[type=button]:hover,
+  .submit-row input:hover,
+  a.button:hover {
+    background: #115e59;
+  }
+</style>
+{% endblock %}
+
+{% block branding %}
+<h1 id="site-name">
+  <a href="{% url 'admin:index' %}">OpenNetManager Admin</a>
+</h1>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

@@ -1,0 +1,302 @@
+
+{% extends "base.html" %}
+{% block title %}Dispositivo | OpenNetManager{% endblock %}
+{% block content %}
+<style>
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1.1fr 1.1fr;
+    gap: 24px;
+  }
+
+  .stack {
+    display: grid;
+    gap: 24px;
+  }
+
+  .header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  .meta-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  pre.raw-block {
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 16px;
+    border-radius: 12px;
+    overflow-x: auto;
+    font-size: 12px;
+  }
+
+  @media (max-width: 980px) {
+    .detail-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<div class="header-row">
+  <div>
+    <h1 class="section-title" style="margin-bottom:8px;">{{ device.hostname }}</h1>
+    <p class="muted" style="margin:0;">{{ device.management_ip }} — {{ device.vendor }} / {{ device.model }}</p>
+  </div>
+  <form method="post" action="{% url 'dashboard-collect-device' device.id %}">
+    {% csrf_token %}
+    <button class="button" type="submit">Executar coleta</button>
+  </form>
+</div>
+
+<div class="stats-grid">
+  <div class="card">
+    <span class="stat-label">Status</span>
+    <span class="stat-value" style="font-size:22px;">{{ device.status }}</span>
+  </div>
+  <div class="card">
+    <span class="stat-label">Clientes online</span>
+    <span class="stat-value">{{ online_clients }}</span>
+  </div>
+  <div class="card">
+    <span class="stat-label">Clientes offline</span>
+    <span class="stat-value">{{ offline_clients }}</span>
+  </div>
+  <div class="card">
+    <span class="stat-label">Firmware</span>
+    <span class="stat-value" style="font-size:18px;">{{ device.firmware|default:"-" }}</span>
+  </div>
+</div>
+
+<div class="detail-grid">
+  <div class="stack">
+    <div class="card">
+      <h2 style="margin-top:0;">Informações do dispositivo</h2>
+      <div class="meta-list">
+        <div><strong>Hostname:</strong> {{ device.hostname }}</div>
+        <div><strong>IP de gerenciamento:</strong> {{ device.management_ip }}</div>
+        <div><strong>Vendor:</strong> {{ device.vendor }}</div>
+        <div><strong>Modelo:</strong> {{ device.model }}</div>
+        <div><strong>Firmware:</strong> {{ device.firmware|default:"-" }}</div>
+        <div><strong>Serial:</strong> {{ device.serial|default:"-" }}</div>
+        <div><strong>SSH Port:</strong> {{ device.ssh_port }}</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0;">Interfaces</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Nome</th>
+            <th>Status</th>
+            <th>Velocidade</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for interface in interfaces %}
+            <tr>
+              <td>{{ interface.name }}</td>
+              <td>{{ interface.status }}</td>
+              <td>{{ interface.speed|default:"-" }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="3">Nenhuma interface cadastrada.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0;">Clientes atuais</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Hostname</th>
+            <th>MAC</th>
+            <th>IP</th>
+            <th>Sinal</th>
+            <th>RX</th>
+            <th>TX</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for client in clients %}
+            <tr>
+              <td>{{ client.hostname|default:"-" }}</td>
+              <td>{{ client.mac }}</td>
+              <td>{{ client.ip|default:"-" }}</td>
+              <td>{{ client.signal }}</td>
+              <td>{{ client.rx|default:"-" }}</td>
+              <td>{{ client.tx|default:"-" }}</td>
+              <td>
+                {% if client.is_online %}
+                  <span class="chip">Online</span>
+                {% else %}
+                  <span class="chip chip-offline">Offline</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="7">Nenhum cliente cadastrado.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0;">Mudanças da última coleta</h2>
+      <p><strong>Entraram:</strong> {{ latest_diff.joined|length|default:"0" }}</p>
+      <p><strong>Saíram:</strong> {{ latest_diff.left|length|default:"0" }}</p>
+      <p><strong>Alterados:</strong> {{ latest_diff.changed|length|default:"0" }}</p>
+
+      {% if latest_diff.joined %}
+        <h3>Entradas</h3>
+        <ul>
+          {% for item in latest_diff.joined %}
+            <li>{{ item.hostname|default:item.mac }} — {{ item.ip|default:"-" }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      {% if latest_diff.left %}
+        <h3>Saídas</h3>
+        <ul>
+          {% for item in latest_diff.left %}
+            <li>{{ item.hostname|default:item.mac }} — {{ item.ip|default:"-" }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      {% if latest_diff.changed %}
+        <h3>Alterações</h3>
+        <ul>
+          {% for item in latest_diff.changed %}
+            <li>{{ item.hostname|default:item.mac }} — {{ item.mac }}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="card">
+      <h2 style="margin-top:0;">Histórico de snapshots</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Duração</th>
+            <th>Resumo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for snapshot in snapshots %}
+            <tr>
+              <td>{{ snapshot.timestamp }}</td>
+              <td>{{ snapshot.duration }}s</td>
+              <td>
+                Online: {{ snapshot.payload.summary.online_clients|default:"0" }},
+                Parseados: {{ snapshot.payload.summary.total_clients_parsed|default:"0" }},
+                Interfaces: {{ snapshot.payload.summary.interfaces|default:"0" }}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="3">Nenhum snapshot disponível.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0;">Tendência recente</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Quando</th>
+            <th>Clientes</th>
+            <th>Interfaces</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for point in history_points %}
+            <tr>
+              <td>{{ point.timestamp }}</td>
+              <td>{{ point.clients }}</td>
+              <td>{{ point.interfaces }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="3">Sem histórico suficiente.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-top:0;">Últimos eventos</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Quando</th>
+            <th>Severidade</th>
+            <th>Mensagem</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for event in events %}
+            <tr>
+              <td>{{ event.occurred_at }}</td>
+              <td>{{ event.severity }}</td>
+              <td>{{ event.message }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="3">Nenhum evento disponível.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if snapshots %}
+      {% with latest=snapshots.0 %}
+        <div class="card">
+          <h2 style="margin-top:0;">Saída bruta da última coleta</h2>
+
+          <h3>Origem</h3>
+          <pre class="raw-block">{{ latest.payload.source|default:"-" }}</pre>
+
+          <h3>System</h3>
+          <pre class="raw-block">{{ latest.payload.raw.system|default:"(sem saída)" }}</pre>
+
+          <h3>Version</h3>
+          <pre class="raw-block">{{ latest.payload.raw.version|default:"(sem saída)" }}</pre>
+
+          <h3>Interfaces</h3>
+          <pre class="raw-block">{{ latest.payload.raw.interfaces|default:"(sem saída)" }}</pre>
+
+          <h3>Stations</h3>
+          <pre class="raw-block">{{ latest.payload.raw.stations|default:"(sem saída)" }}</pre>
+        </div>
+      {% endwith %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

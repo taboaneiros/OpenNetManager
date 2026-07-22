@@ -1,0 +1,39 @@
+
+{% extends "base.html" %}
+{% block title %}Interfaces | OpenNetManager{% endblock %}
+{% block content %}
+<div class="card">
+  <h1 class="section-title">Interfaces</h1>
+  <p class="muted">Inventário atual de interfaces conhecidas.</p>
+  <div style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th>Dispositivo</th>
+          <th>Nome</th>
+          <th>Status</th>
+          <th>Velocidade</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for interface in interfaces %}
+          <tr>
+            <td>
+              <a href="{% url 'dashboard-device-detail' interface.device.id %}" style="text-decoration:none;">
+                {{ interface.device.hostname }}
+              </a>
+            </td>
+            <td>{{ interface.name }}</td>
+            <td>{{ interface.status }}</td>
+            <td>{{ interface.speed|default:"-" }}</td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="4">Nenhuma interface disponível.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

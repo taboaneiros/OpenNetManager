@@ -1,0 +1,82 @@
+# Bytecode
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Django
+db.sqlite3
+media/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker / Podman
+*.pid
+
+# Collection Metrics
+staticfiles/
+
+# Python
+.python-version
+
+# Ruff / Black
+.ruff_cache/
+
+# Pyright
+.pyright/
+
+# Pyre
+.pyre/
+
+# PyCharm
+.idea/
+
+# VSCode Workspace
+*.code-workspace
+
+# macOS/Linux
+*~
+
+# Coverage XML
+coverage.xml
+
+# Local SQLite
+*.sqlite3
+
+# Temporary
+tmp/
+temp/
+
+# Runtime
+run/
+
+# Podman
+containers/

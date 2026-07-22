@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Dispositivos | OpenNetManager{% endblock %}
+{% block topbar_title %}Dispositivos{% endblock %}
+{% block topbar_subtitle %}Inventário dos equipamentos monitorados e acesso às coletas manuais.{% endblock %}
+
+{% block content %}
+<h1 class="section-title">Dispositivos</h1>
+<p class="muted" style="margin-top:0;margin-bottom:16px;">
+  Lista de equipamentos cadastrados com acesso rápido ao detalhe operacional.
+</p>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Hostname</th>
+        <th>IP de gerenciamento</th>
+        <th>Vendor</th>
+        <th>Modelo</th>
+        <th>Status</th>
+        <th>Firmware</th>
+        <th>Ações</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for device in devices %}
+        <tr>
+          <td>{{ device.hostname|default:"-" }}</td>
+          <td>{{ device.management_ip|default:"-" }}</td>
+          <td>{{ device.vendor|default:"-" }}</td>
+          <td>{{ device.model|default:"-" }}</td>
+          <td>{{ device.status|default:"-" }}</td>
+          <td>{{ device.firmware|default:"-" }}</td>
+          <td>
+            {% if device.id %}
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <a class="button" href="{% url 'dashboard-device-detail' device.id %}">
+                  Detalhes
+                </a>
+                <form method="post" action="{% url 'dashboard-collect-device' device.id %}" style="display:inline;">
+                  {% csrf_token %}
+                  <button class="button button-primary" type="submit">
+                    Coletar
+                  </button>
+                </form>
+              </div>
+            {% else %}
+              <span class="muted">Sem ações disponíveis</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="7">Nenhum dispositivo cadastrado.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Eventos | OpenNetManager{% endblock %}
+{% block topbar_title %}Eventos{% endblock %}
+{% block topbar_subtitle %}Registro recente das ações e mudanças detectadas pelo sistema.{% endblock %}
+
+{% block content %}
+<h1 class="section-title">Eventos</h1>
+<p class="muted" style="margin-top:0;margin-bottom:16px;">
+  Histórico recente das coletas e alterações operacionais detectadas.
+</p>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr>
+        <th>Quando</th>
+        <th>Device</th>
+        <th>Severidade</th>
+        <th>Mensagem</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for event in events %}
+        <tr>
+          <td>{{ event.occurred_at }}</td>
+          <td>{{ event.device.hostname }}</td>
+          <td>
+            <span class="chip {% if event.severity != 'info' %}chip-offline{% endif %}">
+              {{ event.severity }}
+            </span>
+          </td>
+          <td>{{ event.message }}</td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="4">Nenhum evento disponível.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

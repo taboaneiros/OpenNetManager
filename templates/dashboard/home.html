@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+{% block title %}Dashboard | OpenNetManager{% endblock %}
+{% block topbar_title %}Dashboard operacional{% endblock %}
+{% block topbar_subtitle %}Resumo do ambiente, atividade recente e concentração de clientes.{% endblock %}
+
+{% block content %}
+<style>
+  .overview-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .panel-grid {
+    display: grid;
+    grid-template-columns: 1.15fr 1fr;
+    gap: 16px;
+  }
+
+  .mini-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .mini-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e9eef5;
+  }
+
+  .mini-item:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+
+  @media (max-width: 1180px) {
+    .overview-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .panel-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .overview-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+
+<h1 class="section-title">Dashboard</h1>
+<p class="muted" style="margin-top:0;margin-bottom:16px;">
+  Métricas principais, últimos eventos e coletas recentes.
+</p>
+
+<div class="overview-grid">
+  <div class="card">
+    <span class="stat-label">Devices</span>
+    <span class="stat-value">{{ totals.devices }}</span>
+  </div>
+  <div class="card">
+    <span class="stat-label">Online</span>
+    <span class="stat-value">{{ totals.online_devices }}</span>
+  </div>
+  <div class="card">
+    <span class="stat-label">Offline</span>
+    <span class="stat-value">{{ totals.offline_devices }}</span>
+  </div>
+  <div class="card">
+    <span class="stat-label">Clientes</span>
+    <span class="stat-value">{{ totals.clients }}</span>
+  </div>
+  <div class="card">
+    <span class="stat-label">Snapshots</span>
+    <span class="stat-value">{{ totals.snapshots }}</span>
+  </div>
+</div>
+
+<div class="panel-grid">
+  <div class="card">
+    <h2>Devices com mais clientes</h2>
+    <div class="mini-list">
+      {% for device in busiest_devices %}
+        <div class="mini-item">
+          <div>
+            <strong>{{ device.hostname }}</strong><br>
+            <span class="muted">{{ device.management_ip }}</span>
+          </div>
+          <span class="chip">{{ device.client_count }} clientes</span>
+        </div>
+      {% empty %}
+        <p class="muted">Nenhum device cadastrado.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Últimos eventos</h2>
+    <div class="mini-list">
+      {% for event in latest_events %}
+        <div class="mini-item">
+          <div>
+            <strong>{{ event.device.hostname }}</strong><br>
+            <span class="muted">{{ event.message }}</span>
+          </div>
+          <span class="chip {% if event.severity != 'info' %}chip-offline{% endif %}">
+            {{ event.severity }}
+          </span>
+        </div>
+      {% empty %}
+        <p class="muted">Nenhum evento disponível.</p>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px;">
+  <h2>Últimas coletas</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Device</th>
+        <th>Timestamp</th>
+        <th>Clientes</th>
+        <th>Interfaces</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for snapshot in recent_snapshots %}
+        <tr>
+          <td>{{ snapshot.device.hostname }}</td>
+          <td>{{ snapshot.timestamp }}</td>
+          <td>{{ snapshot.payload.summary.online_clients|default:"0" }}</td>
+          <td>{{ snapshot.payload.summary.interfaces|default:"0" }}</td>
+        </tr>
+      {% empty %}
+        <tr>
+          <td colspan="4">Nenhuma coleta disponível.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

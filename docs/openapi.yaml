@@ -1,0 +1,153 @@
+openapi: 3.1.0
+info:
+  title: OpenNetManager API
+  version: 1.0.0-draft
+  description: |
+    Draft inicial da API versionada do OpenNetManager para a Fase 0.
+servers:
+  - url: /api/v1
+paths:
+  /health/:
+    get:
+      summary: Retorna o estado básico da aplicação
+      tags: [Health]
+      responses:
+        '200':
+          description: OK
+  /devices/:
+    get:
+      summary: Lista dispositivos
+      tags: [Devices]
+      responses:
+        '200':
+          description: Lista retornada com sucesso
+    post:
+      summary: Cria dispositivo
+      tags: [Devices]
+      responses:
+        '201':
+          description: Dispositivo criado
+  /devices/{device_id}/:
+    get:
+      summary: Detalha dispositivo
+      tags: [Devices]
+      parameters:
+        - in: path
+          name: device_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detalhe retornado
+        '404':
+          description: Dispositivo não encontrado
+  /devices/{device_id}/test-connection/:
+    post:
+      summary: Testa conectividade SSH
+      tags: [Devices]
+      parameters:
+        - in: path
+          name: device_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Teste executado
+        '422':
+          description: Estado inválido ou capability não suportada
+  /devices/{device_id}/collect/:
+    post:
+      summary: Executa coleta manual de snapshot
+      tags: [Snapshots]
+      parameters:
+        - in: path
+          name: device_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '202':
+          description: Coleta aceita ou executada conforme modo de operação
+  /snapshots/:
+    get:
+      summary: Lista snapshots
+      tags: [Snapshots]
+      responses:
+        '200':
+          description: Lista retornada com sucesso
+  /snapshots/{snapshot_id}/:
+    get:
+      summary: Detalha snapshot
+      tags: [Snapshots]
+      parameters:
+        - in: path
+          name: snapshot_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Snapshot retornado
+        '404':
+          description: Snapshot não encontrado
+  /credentials/:
+    get:
+      summary: Lista credenciais mascaradas
+      tags: [Credentials]
+      responses:
+        '200':
+          description: Lista retornada
+    post:
+      summary: Cria credencial
+      tags: [Credentials]
+      responses:
+        '201':
+          description: Credencial criada
+  /events/:
+    get:
+      summary: Lista eventos
+      tags: [Events]
+      responses:
+        '200':
+          description: Lista retornada
+  /collection-jobs/:
+    get:
+      summary: Lista jobs de coleta
+      tags: [CollectionJobs]
+      responses:
+        '200':
+          description: Lista retornada
+    post:
+      summary: Cria job de coleta
+      tags: [CollectionJobs]
+      responses:
+        '201':
+          description: Job criado
+components:
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid
+security:
+  - sessionAuth: []
