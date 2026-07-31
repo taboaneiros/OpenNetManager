@@ -22,6 +22,7 @@ from core.services.diff import SnapshotDiffService
 from core.ssh.config import SSHConfig
 from core.ssh.connection import SSHConnection
 from core.ssh.executor import SSHExecutor
+from core.constants.device import VENDOR_GRANDSTREAM
 
 
 class CollectorService:
@@ -52,51 +53,103 @@ class CollectorService:
         connection.connect()
 
         try:
-            executor = SSHExecutor(connection)
-            driver = AP130Driver(executor)
+            # Route to appropriate driver based on vendor
+            if self._is_grandstream_device(device):
+                collected = self._collect_grandstream(connection, device)
+            else:
+                collected = self._collect_ap130(connection, device)
 
-            raw_system = driver.collect_system()
-            raw_version = driver.collect_version()
-            raw_interfaces = driver.collect_interfaces()
-            raw_stations = driver.collect_stations()
-
-            system = SystemParser().parse(raw_system + "\n" + raw_version)
-            version = VersionParser().parse(raw_version)
-            interfaces = InterfaceParser().parse(raw_interfaces)
-            clients = StationParser().parse(raw_stations)
-
+            # Ensure hostname and model are set
+            system = collected["system"]
             if not system.hostname:
-                system = SystemData(
+                collected["system"] = SystemData(
                     hostname=device.hostname,
                     serial=system.serial,
                     firmware=system.firmware,
                     model=system.model,
                     uptime=system.uptime,
                 )
-
-            if not system.model:
-                system = SystemData(
-                    hostname=system.hostname,
-                    serial=system.serial,
-                    firmware=system.firmware,
+            if not collected["system"].model:
+                collected["system"] = SystemData(
+                    hostname=collected["system"].hostname,
+                    serial=collected["system"].serial,
+                    firmware=collected["system"].firmware,
                     model=device.model,
-                    uptime=system.uptime,
+                    uptime=collected["system"].uptime,
                 )
 
-            return {
-                "system": system,
-                "version": version,
-                "interfaces": interfaces,
-                "clients": clients,
-                "raw": {
-                    "system": raw_system,
-                    "version": raw_version,
-                    "interfaces": raw_interfaces,
-                    "stations": raw_stations,
-                },
-            }
+            return collected
         finally:
             connection.close()
+
+    def _is_grandstream_device(self, device: DeviceModel) -> bool:
+        """Check if device is a Grandstream GWN series."""
+        vendor = (device.vendor or "").lower()
+        return vendor == VENDOR_GRANDSTREAM.lower()
+
+    def _collect_grandstream(self, connection: SSHConnection, device: DeviceModel) -> dict[str, Any]:
+        """Collect data from Grandstream GWN devices using menu navigation."""
+        from core.drivers.gwn7600 import GWN7600Driver
+        from core.parsers.gwn_clients import GWNClientParser
+        from core.parsers.gwn_radio import GWNRadioParser
+        from core.parsers.gwn_system import GWNSystemParser
+        from core.ssh.menu_executor import GWNMenuExecutor
+
+        menu_executor = GWNMenuExecutor(connection)
+        driver = GWN7600Driver(menu_executor)
+
+        # Wait for main menu to appear
+        menu_executor.wait_for_main_menu()
+
+        raw_system = driver.collect_system()
+        raw_interfaces = driver.collect_interfaces()
+        raw_stations = driver.collect_stations()
+
+        system = GWNSystemParser().parse(raw_system)
+        version = GWNSystemParser().parse_version(raw_system)
+        interfaces = GWNRadioParser().parse(raw_interfaces)
+        clients = GWNClientParser().parse(raw_stations)
+
+        return {
+            "system": system,
+            "version": version,
+            "interfaces": interfaces,
+            "clients": clients,
+            "raw": {
+                "system": raw_system,
+                "version": raw_system,  # Same for GWN
+                "interfaces": raw_interfaces,
+                "stations": raw_stations,
+            },
+        }
+
+    def _collect_ap130(self, connection: SSHConnection, device: DeviceModel) -> dict[str, Any]:
+        """Collect data from AP130 devices using command execution."""
+        executor = SSHExecutor(connection)
+        driver = AP130Driver(executor)
+
+        raw_system = driver.collect_system()
+        raw_version = driver.collect_version()
+        raw_interfaces = driver.collect_interfaces()
+        raw_stations = driver.collect_stations()
+
+        system = SystemParser().parse(raw_system + "\n" + raw_version)
+        version = VersionParser().parse(raw_version)
+        interfaces = InterfaceParser().parse(raw_interfaces)
+        clients = StationParser().parse(raw_stations)
+
+        return {
+            "system": system,
+            "version": version,
+            "interfaces": interfaces,
+            "clients": clients,
+            "raw": {
+                "system": raw_system,
+                "version": raw_version,
+                "interfaces": raw_interfaces,
+                "stations": raw_stations,
+            },
+        }
 
     def _collect_fallback(self, device: DeviceModel) -> dict[str, Any]:
         system = SystemData(

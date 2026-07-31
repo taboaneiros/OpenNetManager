@@ -1,5 +1,13 @@
+# AP130 (Extreme Networks)
 DEFAULT_VENDOR = "AP130"
 DEFAULT_MODEL = "AP130"
+
+# Grandstream GWN Series
+VENDOR_GRANDSTREAM = "Grandstream"
+MODEL_GWN7600 = "GWN7600"
+MODEL_GWN76XX = ("GWN7600", "GWN7620", "GWN7630", "GWN7660")
+
+# Status values
 STATUS_ONLINE = "online"
 STATUS_OFFLINE = "offline"
 STATUS_UNKNOWN = "unknown"
