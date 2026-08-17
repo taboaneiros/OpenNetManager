@@ -10,7 +10,7 @@ services:
       POSTGRES_USER: opennetuser
       POSTGRES_PASSWORD: opennetpass
     volumes:
-      - postgres_data:/var/lib/postgresql/data:Z  # :Z para SELinux no Podman
+      - postgres_data:/var/lib/postgresql/data:Z
     networks:
       - opennet-network
     healthcheck:
@@ -18,19 +18,20 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    # Podman-specific: desabilita init system
     init: false
 
   web:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: opennetmanager_web
     restart: always
     ports:
       - "8000:8000"
     environment:
-      - DJANGO_SETTINGS_MODULE=config.settings.production
-      - DATABASE_URL=postgres://opennetuser:opennetpass@db:5432/opennetmanager
-      - PYTHONUNBUFFERED=1  # Para logs em tempo real
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DATABASE_URL: postgres://opennetuser:opennetpass@db:5432/opennetmanager
+      PYTHONUNBUFFERED: 1
     depends_on:
       db:
         condition: service_healthy
@@ -39,7 +40,6 @@ services:
     volumes:
       - ./static:/app/static:Z
       - ./media:/app/media:Z
-    # Podman-specific: desabilita init system
     init: false
 
 networks:
@@ -48,4 +48,3 @@ networks:
 
 volumes:
   postgres_data:
-    # Podman-specific: volume com suporte a SELinux
