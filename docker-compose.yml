@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    container_name: opennetmanager_db
+    restart: always
+    environment:
+      POSTGRES_DB: opennetmanager
+      POSTGRES_USER: opennetuser
+      POSTGRES_PASSWORD: opennetpass
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - opennet-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opennetuser"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    container_name: opennetmanager_web
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.production
+      - DATABASE_URL=postgres://opennetuser:opennetpass@db:5432/opennetmanager
+      # Adicione outras variáveis de ambiente necessárias aqui (ex: SECRET_KEY)
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - opennet-network
+    volumes:
+      - ./static:/app/static
+      - ./media:/app/media
+
+networks:
+  opennet-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
