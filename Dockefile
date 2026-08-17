@@ -1,0 +1,27 @@
+# Usa a imagem oficial Python 3.13
+FROM python:3.13-slim
+
+# Define o diretório de trabalho dentro do container
+WORKDIR /app
+
+# Instala dependências de sistema necessárias para psycopg2 (PostgreSQL)
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copia os arquivos de dependências e as instala
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copia todo o código do projeto
+COPY . .
+
+# Coleta os arquivos estáticos (necessário para produção)
+RUN python manage.py collectstatic --noinput
+
+# Expõe a porta padrão do Django
+EXPOSE 8000
+
+# Comando para iniciar a aplicação usando Gunicorn (servidor WSGI para produção)
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "config.wsgi:application"]
