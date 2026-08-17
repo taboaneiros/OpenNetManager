@@ -1,5 +1,5 @@
 # Usa a imagem oficial Python 3.13
-FROM python:3.13-slim
+FROM docker.io/python:3.13-slim
 
 # Define o diretório de trabalho dentro do container
 WORKDIR /app
@@ -23,5 +23,9 @@ RUN python manage.py collectstatic --noinput
 # Expõe a porta padrão do Django
 EXPOSE 8000
 
-# Comando para iniciar a aplicação usando Gunicorn (servidor WSGI para produção)
+# Define um entrypoint para garantir migrações antes de iniciar
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "config.wsgi:application"]
