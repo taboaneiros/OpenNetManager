@@ -1,70 +1,91 @@
-# Services
+# Services Atualizados
 
-## Objetivo
+## Papel
 
-Definir o service layer do OpenNetManager como a principal camada de orquestração de casos de uso, regras de negócio e coordenação transacional.
+Services coordenam casos de uso, regras de negócio, autorização, capabilities, validação, transações, estados de operação, persistência e auditoria.
 
-## Papel do service layer
-
-Services existem para impedir que lógica de negócio se disperse por views, serializers, signal handlers, repositories e drivers. Eles recebem intenção de negócio, coordenam dependências e devolvem resultados coerentes para a apresentação ou API.
-
-## Responsabilidades
-
-- orquestrar casos de uso;
-- aplicar regras de negócio;
-- validar estado e elegibilidade;
-- coordenar repositories e drivers;
-- controlar transações;
-- registrar eventos e logs relevantes;
-- converter falhas técnicas em semântica de aplicação quando necessário.
-
-## Services iniciais sugeridos
-
-- `AuthService` quando houver regras além do padrão Django;
-- `DeviceService`;
-- `CredentialService`;
-- `SnapshotService`;
-- `EventService`;
-- `CollectionJobService`;
-- `DashboardService`;
-- `HealthService`.
-
-## Exemplo de responsabilidades por serviço
+## Services
 
 ### DeviceService
 
-- criar e atualizar dispositivos;
-- validar consistência de vendor/plataforma;
-- ativar/desativar device;
-- compor detalhes para a UI.
+Cadastro, atualização, ativação, desativação e composição de detalhes do dispositivo.
 
 ### CredentialService
 
-- criar credencial;
-- rotacionar segredo;
-- associar a dispositivos;
-- validar elegibilidade e estado.
+Criação, rotação, associação, validação e proteção de credenciais.
 
 ### SnapshotService
 
-- testar conectividade;
-- disparar coleta manual;
-- resolver driver;
-- persistir snapshot e objetos relacionados;
-- classificar sucesso, parcial ou falha.
+Teste de conectividade, coleta manual, resolução de driver, persistência e classificação do snapshot.
 
-### CollectionJobService
+### WifiConfigurationService
 
-- criar e alterar jobs;
-- habilitar/desabilitar;
-- preparar integração futura com scheduler.
+Preview, diff, validação, confirmação e aplicação de SSID e rádio.
 
-## Dependency Injection
+### NetworkConfigurationService
 
-A documentação do projeto exige injeção de dependências explícita nas fronteiras centrais. Em termos práticos, isso significa que services não devem criar internamente suas dependências críticas sem necessidade. Mesmo em um monólito Django, é desejável poder substituir driver registry, gateway SSH e repositories para testes e composição controlada.
+DHCP, IP fixo, gateway, DNS, VLAN e reconexão após alteração.
 
-## Trade-offs
+### ConfigurationService
 
-### Service layer formal versus lógica em views/serializers
+Leitura de configuração, exportação versionada, validação e importação com backup.
 
-A abordagem formal exige mais disciplina e algum boilerplate. Em compensação, deixa a aplicação menos acoplada a HTTP e mais reutilizável por dashboard, API, scheduler e automações futuras.
+### MaintenanceService
+
+Reboot, reset de serviço, reset de configuração e factory reset protegido.
+
+### DiagnosticService
+
+Ping, traceroute, logs, configuração completa e CLI controlada.
+
+### ClientOperationService
+
+Desautenticação temporária e futuras ações sobre clientes.
+
+### DashboardMetricsService
+
+Agregação de dados persistidos para cards, rankings, gráficos e alertas operacionais.
+
+### AuditService
+
+Registro imutável de ações sensíveis, ator, alvo, capability, resultado e correlação.
+
+## Fluxo comum
+
+1. Receber intenção de aplicação.
+2. Validar usuário e autorização.
+3. Carregar device e credencial pelo repository.
+4. Resolver driver.
+5. Verificar capability.
+6. Validar entrada e estado.
+7. Construir diff quando alteração.
+8. Solicitar ou verificar confirmação.
+9. Executar driver.
+10. Controlar reconexão quando necessário.
+11. Verificar resultado.
+12. Persistir snapshot, resultado e evento.
+13. Devolver contrato de aplicação.
+
+## Estados
+
+```text
+pending
+validating
+awaiting_confirmation
+executing
+reconnecting
+verifying
+succeeded
+partially_succeeded
+failed
+timeout
+cancelled
+```
+
+## Injeção de dependências
+
+Services devem receber registry, gateway SSH, repositories, clock e auditoria por injeção sempre que esses componentes forem críticos para teste ou composição.
+
+## Falhas
+
+Converter erros de transporte, autenticação, capability, parsing, validação e reconexão para exceções semânticas da aplicação. Não esconder falhas retornando listas vazias ou sucesso genérico.
