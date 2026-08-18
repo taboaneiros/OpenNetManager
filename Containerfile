@@ -1,5 +1,5 @@
-# Imagem base compatível com ARMv7
-FROM python:3.11-slim
+# Imagem base compatível com AMD64
+FROM python:3.13
 
 # Diretório de trabalho
 WORKDIR /app
@@ -27,4 +27,4 @@ COPY . .
 RUN mkdir -p /app/static
 
 # Entrypoint: aplica migrações, coleta estáticos e inicia o servidor
-ENTRYPOINT ["sh", "-c", "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn --bind 0.0.0.0:8000 meuprojeto.wsgi:application"]
+ENTRYPOINT ["sh", "-c", "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2"]
