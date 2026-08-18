@@ -1,64 +1,105 @@
-# Segurança Técnica
+# Segurança Operacional
 
-## Objetivo
+## Princípios
 
-Aprofundar as diretrizes de segurança do OpenNetManager em nível de arquitetura e implementação.
+O OpenNetManager manipula credenciais privilegiadas e pode executar alterações destrutivas em equipamentos de rede. Segurança deve ser aplicada no fluxo de aplicação, no driver, no transporte, na persistência, na UI e na auditoria.
 
-## Superfícies de ataque relevantes
+## Autorização
 
-- login web e gestão de sessão;
-- endpoints de API;
-- armazenamento e uso de credenciais de dispositivos;
-- conexão SSH com hosts remotos;
-- upload futuro de chaves/arquivos;
-- logs e mensagens de erro;
-- pipeline CI/CD e segredos de ambiente;
-- dependências do projeto.
+Separar permissões de:
 
-## Controles mínimos
+- leitura de inventário;
+- leitura de clientes e logs;
+- diagnóstico;
+- configuração de Wi-Fi;
+- configuração de rede/VLAN;
+- reboot;
+- reset;
+- factory reset;
+- import/export;
+- desautenticação;
+- CLI.
 
-### Aplicação web
+Não considerar usuário autenticado automaticamente autorizado a alterar dispositivo.
 
-- CSRF habilitado em fluxos de formulário.
-- Cookies com flags seguras por ambiente.
-- Sessões com políticas explícitas de expiração.
-- Proteção a brute force planejada para autenticação.
-- Validação server-side obrigatória em toda entrada.
+## Confirmação
 
-### API
+Devem exigir confirmação:
 
-- autenticação obrigatória por padrão, exceto endpoints públicos estritamente necessários;
-- autorização por ação e recurso;
-- respostas sem vazamento de internals;
-- rate limiting planejado para fases seguintes.
+- reboot;
+- reset;
+- factory reset;
+- import;
+- mudança de IP;
+- mudança de VLAN de gerenciamento;
+- alteração de SSID ou rádio;
+- desautenticação de cliente;
+- comandos CLI administrativos.
 
-### Credenciais
+Factory reset deve exigir confirmação textual do dispositivo e permissão administrativa forte.
 
-- segredo protegido em repouso;
-- rotação suportada;
-- visualização posterior mascarada;
-- auditoria para criação, atualização, associação e desativação.
+## Segredos
 
-### SSH
+- Armazenar credenciais protegidas.
+- Nunca reexibir segredo após criação.
+- Mascarar senhas SSH e Wi-Fi em logs, snapshots, raw output, exports, templates e APIs.
+- Exportar configuração redacted por padrão.
+- Evitar valores padrão inseguros em produção.
 
-- comandos permitidos controlados pelo driver;
-- timeout explícito;
-- tratamento de erro categorizado;
-- política documentada de validação de host key.
+## SSH
 
-## Logging seguro
+- Validar host key conforme ambiente.
+- Aplicar timeout de conexão, autenticação, comando e operação total.
+- Limitar retries.
+- Restringir comandos ao driver.
+- Não montar comando diretamente com input arbitrário.
+- Registrar falhas sem expor segredo.
 
-Logs devem ser suficientes para depuração sem comprometer segredo. Isso significa registrar contexto técnico, correlação, dispositivo, operação e categoria de erro, mas nunca senha, chave privada ou segredo descriptografado.
+## Configuração de rede
 
-## Dependências
+Mudanças de IP, DHCP ou VLAN podem derrubar a sessão. O sistema deve:
 
-Django 5.2 recebe manutenção de segurança de longo prazo por ser LTS, o que favorece a escolha para uma base Open Source que precisa de previsibilidade.[page:2][web:12] Ainda assim, releases corretivas do framework devem ser monitoradas continuamente, pois houve correções de segurança relevantes dentro da série 5.2.[web:5][web:13]
+- alertar o operador;
+- manter estado de reconexão;
+- tentar validar endpoint novo;
+- atualizar inventário somente após confirmação;
+- registrar perda de conexão e resultado.
 
-## Hardening futuro prioritário
+## Backup, import e reset
 
-- criptografia detalhada de credenciais;
-- rotação de chaves de aplicação;
-- secrets management por ambiente;
-- rate limit e proteção a abuso de API;
-- análise automatizada de dependências no CI;
-- resposta a incidentes e playbooks operacionais.
+- Oferecer backup antes de reset/import.
+- Validar schema e compatibilidade.
+- Exibir diff.
+- Rejeitar campos perigosos ou desconhecidos quando necessário.
+- Registrar checksum, usuário e timestamp.
+- Implementar rollback somente quando suportado e testado.
+
+## CLI
+
+A primeira versão deve ser controlada por capability e lista de comandos. Sessões devem possuir usuário, device, início, fim, timeout, comandos executados e auditoria. Shell livre exige análise de segurança própria.
+
+## Auditoria
+
+Registrar:
+
+- usuário;
+- device;
+- operação;
+- capability;
+- estado anterior;
+- estado posterior;
+- sucesso ou falha;
+- erro normalizado;
+- timestamp;
+- correlation id;
+- backup ou snapshot relacionado.
+
+Eventos de auditoria não devem ser apagados por rotinas comuns de limpeza.
+
+## Diagnóstico
+
+Logs e configuração completa podem conter dados sensíveis. Controlar leitura, exportação, retenção e acesso administrativo. Informar sempre origem do diagnóstico: servidor ou dispositivo.
+
+## Clientes
+
+MAC, IP, hostname, SSID e dados de tráfego são informações operacionais potencialmente sensíveis. Restringir acesso conforme perfil e evitar exportação desnecessária.

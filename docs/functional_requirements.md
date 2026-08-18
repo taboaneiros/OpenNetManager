@@ -2,178 +2,133 @@
 
 ## Objetivo
 
-Este documento detalha os requisitos funcionais do OpenNetManager para a Fase 0 e estabelece o contrato de comportamento esperado para a implementação inicial do produto. O objetivo é remover ambiguidades de escopo e transformar a visão de produto em capacidades observáveis, testáveis e rastreáveis.
+Definir capacidades observáveis e testáveis do OpenNetManager como plataforma multi-vendor de gerenciamento operacional de access points e dispositivos de rede.
 
-## Convenções
+## Requisitos existentes
 
-- Cada requisito funcional possui um identificador estável.
-- Requisitos são escritos do ponto de vista do sistema, não da implementação.
-- Onde necessário, a motivação arquitetural e os trade-offs são explicitados.
-- Requisitos futuros previstos são marcados como diferidos para fases posteriores, sem contaminar o escopo executável inicial.
+Os requisitos RF-001 a RF-030 permanecem válidos, incluindo autenticação, autorização, inventário, credenciais, SSH, drivers, coleta, snapshots, eventos, dashboard, API, jobs, auditoria, mascaramento de segredos, extensibilidade e health endpoint.
 
-## Escopo funcional da Fase 0
+## Novos requisitos
 
-A Fase 0 define completamente o comportamento a ser implementado, ainda que nem todas as capacidades estejam prontas para execução automática em produção. O foco desta fase é especificar o núcleo funcional inicial do sistema e suas fronteiras.
+### RF-031 — Configuração de SSID
 
-## Catálogo de requisitos
+O sistema deve permitir configurar SSID, habilitação, segurança, senha protegida, visibilidade, VLAN, bandas e opções suportadas pelo vendor. A operação deve apresentar diff, exigir confirmação e registrar auditoria.
 
-### RF-001 — Autenticação de usuário
+### RF-032 — Configuração de rádio
 
-O sistema deve permitir autenticação de usuários da plataforma por meio da camada padrão de autenticação do Django, com fluxo de login, logout e manutenção de sessão autenticada. A solução inicial prioriza simplicidade, maturidade e segurança por padrão em vez de reinventar controle de identidade.
+O sistema deve permitir configurar banda, canal, largura, potência, modo, minimum RSSI, band steering, airtime fairness e opções específicas quando suportadas.
 
-**Justificativa arquitetural:** usar o mecanismo nativo do Django reduz superfície de erro, integra-se ao ecossistema do framework e acelera a implementação da base de segurança.[page:2] O trade-off é menor liberdade para experimentar modelos exóticos de autenticação no início, o que é aceitável na Fase 0.
+### RF-033 — Configuração DHCP
 
-### RF-002 — Autorização por perfil funcional
+O sistema deve permitir ativar DHCP na interface de gerenciamento quando suportado, informando o risco de mudança de endereço e controlando reconexão.
 
-O sistema deve restringir ações administrativas, operacionais e de leitura conforme perfil ou permissão atribuída ao usuário. Nem todo usuário autenticado poderá alterar inventário, credenciais ou jobs de coleta.
+### RF-034 — Configuração de IP fixo
 
-### RF-003 — Cadastro de dispositivo
+O sistema deve permitir configurar endereço, prefixo, gateway e DNS. O novo endereço só deve substituir o endereço persistido após validação de conectividade, salvo política explicitamente documentada.
 
-O sistema deve permitir cadastrar dispositivos no inventário com, no mínimo:
+### RF-035 — Configuração de VLAN
 
-- nome lógico;
-- vendor;
-- plataforma;
-- hostname ou endereço IP;
-- porta SSH;
-- descrição opcional;
-- status administrativo;
-- credencial associada.
+O sistema deve permitir configurar VLAN de gerenciamento e VLAN associada a SSID, além de tagging, untagging, trunk e VLAN nativa quando suportados. O sistema deve alertar sobre risco de perda de acesso.
 
-### RF-004 — Edição de dispositivo
+### RF-036 — Reboot
 
-O sistema deve permitir alterar metadados do dispositivo sem destruir seu histórico operacional. Mudanças cadastrais não podem apagar snapshots, eventos ou jobs relacionados, exceto por ações administrativas explícitas e controladas.
+Usuário autorizado deve poder reiniciar um dispositivo suportado. A operação deve registrar usuário, dispositivo, início, resultado, indisponibilidade esperada e retorno verificado.
 
-### RF-005 — Desativação lógica de dispositivo
+### RF-037 — Reset de configuração
 
-O sistema deve permitir marcar um dispositivo como inativo ou desabilitado para impedir novas coletas operacionais normais sem remover seu histórico persistido.
+Usuário com permissão específica deve poder solicitar reset de configuração suportado pelo device. O sistema deve distinguir reset de serviço, reset de configuração e factory reset.
 
-**Trade-off:** exclusão física simplificaria algumas consultas, mas destruiria rastreabilidade e dificultaria auditoria. A desativação lógica preserva contexto histórico com custo pequeno de filtragem adicional.
+### RF-038 — Factory reset
 
-### RF-006 — Cadastro de credencial
+Factory reset deve exigir autorização administrativa forte, confirmação textual do dispositivo, aviso de perda de configuração e auditoria. Backup deve ser oferecido antes da execução.
 
-O sistema deve permitir cadastrar credenciais reutilizáveis com tipo de autenticação, nome descritivo, usuário e material secreto correspondente. O segredo deve ser protegido em repouso e nunca reexibido em claro após a criação.
+### RF-039 — Exportação de configuração
 
-### RF-007 — Associação de credencial a dispositivo
+O sistema deve exportar configuração em formato versionado, identificando vendor, plataforma, modelo e timestamp. Segredos devem ser mascarados por padrão.
 
-O sistema deve permitir associar uma credencial a um ou mais dispositivos conforme política definida, respeitando validações de compatibilidade do tipo de autenticação e estado da credencial.
+### RF-040 — Importação de configuração
 
-### RF-008 — Rotação de credencial
+O sistema deve validar compatibilidade, schema, vendor, plataforma e campos perigosos antes de aplicar uma configuração. Deve apresentar diff, solicitar confirmação e preservar backup quando possível.
 
-O sistema deve permitir atualizar o segredo de uma credencial sem recriar o vínculo de todos os dispositivos associados. A operação deve ser auditável e minimizar alterações cascata no inventário.
+### RF-041 — Ping
 
-### RF-009 — Teste de conectividade SSH
+O sistema deve executar ping a partir do servidor ou do dispositivo quando suportado, identificando claramente a origem e normalizando resultado, latência, perda e saída bruta.
 
-O sistema deve permitir que um usuário autorizado execute teste controlado de conectividade SSH para validar credencial, reachability e capacidade mínima de handshake com o dispositivo.
+### RF-042 — Traceroute
 
-### RF-010 — Resolução de driver por vendor/plataforma
+O sistema deve executar traceroute a partir do servidor ou do dispositivo quando suportado, identificando origem, destino, saltos, timeout e resultado.
 
-O sistema deve selecionar automaticamente o driver adequado com base nos metadados do dispositivo, sem lógica condicional distribuída por views ou templates. A resolução deve ocorrer em mecanismo centralizado de registry ou factory.
+### RF-043 — Logs do dispositivo
 
-### RF-011 — Coleta manual de snapshot
+O sistema deve permitir consultar logs do device com filtros de período, severidade e texto quando suportado. Logs devem ter origem, timestamp e controle de acesso.
 
-O sistema deve permitir iniciar manualmente uma coleta de snapshot de um dispositivo elegível. Essa coleta deve acionar o fluxo arquitetural oficial:
+### RF-044 — Exportação de logs
 
-View → Service → Driver → SSH → Parser → Domain Objects → Repository
+O sistema deve exportar logs em formato seguro e auditável, sem incluir segredos conhecidos.
 
-### RF-012 — Coleta de informações de sistema
+### RF-045 — Configuração completa
 
-O sistema deve permitir coletar e persistir informações de sistema disponíveis no dispositivo, como hostname, modelo, plataforma observada, firmware, uptime e outros metadados suportados.
+O sistema deve permitir visualizar e exportar a configuração completa ou o estado equivalente fornecido pelo device. Segredos devem ser mascarados por padrão.
 
-### RF-013 — Coleta de interfaces
+### RF-046 — CLI controlada
 
-O sistema deve permitir coletar, normalizar e persistir informações de interfaces do dispositivo. Essa coleta deve gerar registros vinculados a um snapshot específico, sem sobrescrever diretamente o histórico anterior.
+O sistema deve oferecer uma interface de diagnóstico com comandos permitidos pelo driver, timeout, controle de sessão, registro de usuário e auditoria. Shell livre não é obrigatório.
 
-### RF-014 — Coleta de clientes suportados
+### RF-047 — Dashboard operacional avançado
 
-O sistema deve permitir coletar clientes conectados quando a plataforma suportar essa semântica. Caso a capability não exista no driver, o sistema deve responder de forma explícita e previsível, sem simular sucesso vazio indevido.
+O dashboard deve apresentar APs online/offline, clientes, SSIDs, rádios, taxas totais, falhas de coleta, eventos e timestamp da última atualização.
 
-### RF-015 — Persistência histórica de snapshot
+### RF-048 — Métricas de SSID e tráfego
 
-O sistema deve persistir cada coleta como uma entidade de snapshot independente, registrando pelo menos status, timestamps relevantes, origem do acionamento e duração da operação.
+O sistema deve consolidar clientes e tráfego por SSID, distinguindo ranking por quantidade de clientes de ranking por volume de tráfego.
 
-### RF-016 — Registro de status da coleta
+### RF-049 — Tela detalhada de clientes
 
-O sistema deve classificar a coleta com estados como pendente, executando, sucesso, sucesso parcial, timeout ou falha, conforme taxonomia padronizada do projeto.
+O sistema deve listar hostname, MAC, IP, SSID, AP, banda, rádio, canal, sinal, upload, download, tempo conectado, última atividade, status e OS quando disponível.
 
-### RF-017 — Registro de eventos operacionais
+### RF-050 — Sistema operacional do cliente
 
-O sistema deve registrar eventos operacionais ou técnicos importantes, incluindo falhas de conexão, falhas de parsing, snapshot concluído, credencial alterada e ações administrativas sensíveis.
+O sistema deve classificar o OS como conhecido, inferido, desconhecido ou não suportado. Informação inferida não deve ser apresentada como certeza.
 
-### RF-018 — Listagem de dispositivos
+### RF-051 — Desautenticação temporária
 
-O sistema deve oferecer listagem paginada e filtrável de dispositivos, permitindo ao usuário localizar ativos por nome, vendor, plataforma, status ou outros filtros definidos.
+Usuário autorizado deve poder desautenticar temporariamente cliente suportado. A operação deve apresentar MAC, SSID e AP, exigir confirmação, executar capability do driver e registrar evento.
 
-### RF-019 — Visualização de detalhe do dispositivo
+### RF-052 — Capabilities por vendor
 
-O sistema deve exibir página de detalhe com visão consolidada do dispositivo, último snapshot, dados de sistema, interfaces, clientes suportados e eventos recentes relevantes.
+O sistema deve resolver e expor capabilities por vendor, plataforma e, quando necessário, firmware. Capability não suportada deve retornar erro semântico explícito.
 
-### RF-020 — Histórico de snapshots
+### RF-053 — Auditoria de alterações
 
-O sistema deve permitir visualizar o histórico de snapshots de um dispositivo, ordenado temporalmente e acessível por filtros básicos.
+Toda alteração de configuração, manutenção, diagnóstico sensível, import/export e operação de cliente deve registrar usuário, dispositivo, operação, resultado, timestamp e referência de backup ou snapshot quando aplicável.
 
-### RF-021 — Visualização de snapshot individual
-
-O sistema deve permitir abrir um snapshot específico e inspecionar seus dados persistidos de forma isolada do estado atual do dispositivo.
-
-### RF-022 — Dashboard operacional inicial
-
-O sistema deve oferecer dashboard inicial com métricas básicas de inventário e estado operacional agregado, sem acessar SSH diretamente. Toda informação exibida deve vir de serviços e repositórios sobre dados persistidos.
-
-**Justificativa arquitetural:** impedir coleta em tempo real a partir do dashboard reduz acoplamento entre UI e infraestrutura e evita comportamentos imprevisíveis na camada de apresentação.
-
-### RF-023 — API REST versionada
-
-O sistema deve expor uma API REST versionada para leitura e, quando aplicável, escrita controlada sobre recursos centrais como dispositivos, snapshots, eventos, credenciais e jobs.
-
-### RF-024 — Contratos de erro padronizados
-
-A API e os serviços devem operar com taxonomia consistente de erros, permitindo distinguir validação, autorização, conectividade, parsing, conflito de estado e falhas internas.
-
-### RF-025 — Criação de CollectionJob
-
-O sistema deve permitir criar definições persistidas de coleta futura, mesmo que o scheduler automático evolua em fase posterior. Essa modelagem antecipada é necessária para preservar coerência do domínio e evitar remodelagem posterior do fluxo de coleta.
-
-### RF-026 — Habilitação/desabilitação de CollectionJob
-
-O sistema deve permitir ativar e desativar jobs de coleta sem removê-los da base histórica.
-
-### RF-027 — Registro de auditoria mínima
-
-O sistema deve registrar quem executou ações sensíveis como criação de dispositivo, alteração de credencial, teste de conexão e disparo manual de coleta, quando aplicável.
-
-### RF-028 — Máscara de segredos na UI e API
-
-O sistema nunca deve retornar segredo em claro em interfaces humanas ou programáticas após a persistência inicial.
-
-### RF-029 — Extensibilidade multi-vendor
-
-O sistema deve permitir adicionar novos vendors por meio da introdução de drivers, parsers, fixtures e registro de capabilities, sem necessidade de alterar a arquitetura base.
-
-### RF-030 — Health/status endpoint interno
-
-O sistema deve disponibilizar ao menos uma capacidade de health/status para inspeção operacional da aplicação, separada de endpoints de negócio.
-
-## Requisitos explicitamente fora do comportamento executável inicial
-
-Os itens abaixo podem estar modelados, mas não precisam ter implementação operacional completa na primeira etapa funcional do produto:
-
-- scheduler distribuído completo;
-- filas assíncronas com Redis;
-- auto-discovery de dispositivos;
-- suporte multi-vendor implementado além do AP130;
-- monitoração em tempo real contínua.
-
-## Matriz resumida de rastreabilidade
-
-| Requisito | Entidade principal | Camadas impactadas |
-|---|---|---|
-| RF-003 a RF-005 | Device | View, Service, Repository |
-| RF-006 a RF-008 | Credential | View, Service, Repository, Security |
-| RF-009 a RF-016 | Snapshot / Driver | Service, Driver, SSH, Parser, Repository |
-| RF-017 | Event | Service, Repository, Logging |
-| RF-018 a RF-022 | Device / Snapshot | View, Service, Repository |
-| RF-023 e RF-024 | API | API, Service, Exceptions |
-| RF-025 e RF-026 | CollectionJob | View, Service, Repository, Scheduler |
-| RF-027 e RF-028 | Audit / Security | Service, Logging, Security |
-| RF-029 | Driver ecosystem | Driver, Parser, Tests, ADR |
+### RF-054 — Verificação pós-operação
+
+Operações de alteração devem verificar o estado final quando possível e classificar sucesso, sucesso parcial, falha, timeout ou necessidade de reconexão.
+
+## Estados de operação
+
+```text
+pending
+validating
+awaiting_confirmation
+executing
+reconnecting
+verifying
+succeeded
+partially_succeeded
+failed
+timeout
+cancelled
+```
+
+## Critérios gerais de aceite
+
+- Capability é verificada antes da execução.
+- A autorização é verificada antes da execução.
+- Operação destrutiva exige confirmação.
+- Segredos não são retornados.
+- Falhas são classificadas.
+- Resultado possui origem, timestamp e mensagem.
+- Há auditoria para alterações.
+- Há teste de sucesso, falha e capability ausente.

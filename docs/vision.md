@@ -1,57 +1,88 @@
 # Visão do Produto
 
-## Declaração de visão
+## Declaração
 
-OpenNetManager existe para fornecer uma plataforma Open Source de gerenciamento de dispositivos de rede orientada a múltiplos fabricantes, capaz de transformar acesso operacional fragmentado em uma experiência consistente de inventário, coleta, histórico e observabilidade básica.
+O OpenNetManager é uma plataforma Open Source, multi-vendor, para gerenciamento operacional de access points e dispositivos de rede. Seu objetivo é transformar operações fragmentadas por CLI e fabricante em uma experiência consistente de inventário, coleta, configuração, manutenção, diagnóstico, histórico e auditoria.
 
-## Problema que o produto resolve
+## Problema
 
-Equipes de rede frequentemente dependem de acesso manual via CLI, documentação informal de credenciais, ferramentas isoladas por fabricante e baixa padronização de coleta. Esse contexto eleva o tempo de diagnóstico, reduz rastreabilidade e dificulta a construção de visão centralizada do ambiente.
+Equipes de rede normalmente precisam alternar entre interfaces, comandos, credenciais e formatos de saída diferentes para operar equipamentos heterogêneos. Isso dificulta diagnóstico, aumenta o risco de alterações manuais, reduz rastreabilidade e torna comparações históricas pouco confiáveis.
 
 ## Proposta de valor
 
-O OpenNetManager entrega valor por meio de cinco promessas fundamentais:
-
-1. inventário centralizado de dispositivos;
-2. coleta remota controlada via SSH;
-3. normalização de dados operacionais em estruturas coesas;
-4. histórico de snapshots para auditoria e comparação;
-5. expansão multi-vendor sem reescrita do núcleo.
+- Inventário centralizado.
+- Coleta SSH controlada.
+- Normalização de dados.
+- Configuração segura e auditável.
+- Diagnóstico a partir do dispositivo e da plataforma.
+- Histórico de snapshots, eventos e configurações.
+- Dashboard operacional com clientes, SSIDs, rádios e tráfego.
+- Expansão para novos vendors sem reescrever o núcleo.
 
 ## Usuários-alvo
 
-- administradores de rede;
-- operadores NOC ou suporte técnico;
-- equipes de infraestrutura com ambientes heterogêneos;
-- contribuidores Open Source que desejem ampliar suporte a novos vendors.
+- Administradores de rede.
+- Operadores NOC.
+- Suporte técnico.
+- Equipes de infraestrutura.
+- Desenvolvedores de integrações para novos vendors.
 
-## Escopo inicial do produto
+## Capacidades do produto
 
-O escopo inicial cobre o suporte ao AP130 via SSH como primeira implementação concreta da plataforma. O produto deve permitir cadastro de dispositivo, vinculação de credenciais, coleta operacional, persistência dos resultados e visualização via dashboard e API.
+### Operação
 
-## Posição estratégica
+- Cadastro e consulta de dispositivos.
+- Coleta manual e agendada.
+- Snapshots e comparação histórica.
+- Eventos operacionais e auditoria.
 
-O OpenNetManager não pretende nascer como suíte completa de automação de rede, orquestração massiva ou monitoramento em tempo real. O posicionamento inicial é ser uma fundação confiável e extensível para gerenciamento operacional estruturado.
+### Configuração
 
-## Diferenciais pretendidos
+- SSID e segurança.
+- Rádio, canal, largura e potência.
+- DHCP e IP fixo.
+- VLAN de gerenciamento e VLAN de SSID.
 
-- arquitetura orientada a vendor abstraction desde o início;
-- separação rígida entre transporte, parsing e persistência;
-- dashboard server-driven simples de evoluir;
-- documentação de engenharia equivalente a projeto Open Source maduro;
-- caminho explícito para expansão futura.
+### Manutenção
 
-## Restrições de visão
+- Reboot.
+- Reset de configuração.
+- Factory reset protegido.
+- Export e import versionados.
 
-- nunca acoplar o núcleo ao AP130;
-- nunca permitir lógica de coleta em dashboard;
-- nunca misturar parsing com transporte;
-- nunca tratar documentação como artefato secundário.
+### Diagnóstico
 
-## Métricas de sucesso iniciais
+- Ping e traceroute a partir do servidor ou do dispositivo.
+- Logs filtráveis e exportáveis.
+- Configuração completa protegida.
+- CLI controlada.
 
-- tempo de onboarding de desenvolvedor senior;
-- quantidade de ambiguidades de implementação remanescentes;
-- facilidade de adicionar um segundo vendor sem refatoração estrutural;
-- confiabilidade dos snapshots persistidos;
-- clareza de uso para operador técnico.
+### Clientes e dashboard
+
+- Clientes por SSID, rádio e AP.
+- Sinal, banda, taxa de upload e download.
+- OS conhecido, inferido ou desconhecido.
+- Desautenticação temporária.
+- Top clientes e SSIDs por quantidade e tráfego.
+
+## Suporte inicial
+
+O AP130 da Extreme Networks é o primeiro driver estratégico. O Grandstream GWN7600 também é uma integração concreta do sistema. A diferença de complexidade entre os equipamentos, especialmente nos fluxos CLI do AP130, deve permanecer isolada em drivers e parsers.
+
+## Limitações intencionais
+
+- O produto não começa como controlador universal de todos os fabricantes.
+- Nem todo vendor oferecerá todas as capabilities.
+- Monitoramento em tempo real contínuo depende de evolução de coleta e escala.
+- CLI livre não é requisito inicial; a primeira implementação deve ser controlada.
+- Rollback depende do suporte concreto de cada equipamento.
+
+## Métricas de sucesso
+
+- Tempo para cadastrar e operar um novo dispositivo.
+- Tempo para adicionar um novo vendor.
+- Percentual de operações com auditoria completa.
+- Taxa de sucesso das coletas.
+- Correção dos dados normalizados.
+- Tempo de diagnóstico de falhas.
+- Clareza do dashboard para operadores.

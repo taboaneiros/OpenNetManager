@@ -1,150 +1,129 @@
-# Arquitetura Técnica
+# Arquitetura Técnica Atualizada
 
-## Objetivo
+## Estilo
 
-Este documento expande a visão macro de `ARCHITECTURE.md` com detalhamento técnico da estrutura interna do OpenNetManager para orientar a implementação da Fase 0.
+O OpenNetManager utiliza um monólito modular com Clean Architecture como referência, DDD Lite, Repository Pattern, Service Layer, Driver Pattern, Parser Pattern e Dependency Injection nas fronteiras centrais.
 
-## Estilo arquitetural
+## Fluxo de leitura
 
-O OpenNetManager adota um monólito modular com camadas explícitas. A escolha busca equilibrar clareza, velocidade de entrega, simplicidade operacional e baixo acoplamento. Em vez de microsserviços prematuros, a arquitetura favorece modularidade interna forte, contratos claros e evolução incremental.
-
-## Princípios de desenho aplicados
-
-- dependências apontam para camadas mais internas ou mais estáveis;
-- regras de negócio não dependem de SSH, HTML ou ORM diretamente;
-- variações de vendor são encapsuladas por drivers e parsers;
-- persistência é mediada por repositories;
-- acesso externo ocorre via views e API, nunca diretamente ao domínio.
-
-## Camadas detalhadas
-
-### Presentation Layer
-
-Responsável por views Django, templates, forms, serializers DRF e endpoints HTTP. Deve converter entrada externa em chamadas de serviço e produzir resposta adequada. Não contém regra de negócio profunda nem detalhes de persistência.
-
-### Application Layer
-
-Responsável por serviços de caso de uso. Aqui residem orquestração, políticas, fluxos transacionais, validação de regras e coordenação entre repositórios, drivers e componentes auxiliares.
-
-### Domain Layer
-
-Responsável por entidades conceituais, value objects, enums, políticas de domínio simples e contratos estáveis usados pelas camadas superiores. Na Fase 0, adota-se DDD Lite: suficiente para nomear bem o problema, sem burocratizar demais o código.
-
-### Infrastructure Layer
-
-Responsável por ORM, repositórios concretos, SSH, drivers, parsers, logging técnico e integrações. Esta camada implementa contratos definidos mais acima e concentra variabilidade externa.
-
-## Dependência permitida
-
-```mermaid
-flowchart TD
-    P[Presentation] --> A[Application]
-    A --> D[Domain]
-    A --> I[Infrastructure Contracts/Adapters]
-    I --> D
+```text
+View/API
+→ Service
+→ Repository
+→ Driver Registry
+→ Driver
+→ SSH Gateway
+→ Parser
+→ Domain Objects
+→ Repository
+→ View/API
 ```
 
-A representação acima é conceitual. Na prática do repositório, algumas estruturas coexistem em pacotes top-level; por isso disciplina de dependência é mais importante que mera posição física em diretórios.
+## Fluxo de alteração
 
-## Estratégia para multi-vendor
-
-A estratégia multi-vendor baseia-se em quatro pilares:
-
-1. `Device` com metadados explícitos de vendor e plataforma.
-2. `BaseDriver` com capacidades abstratas.
-3. `Parser` segmentado por comando/contexto.
-4. `Service` orquestrando o fluxo sem semântica de vendor hardcoded.
-
-### Consequência positiva
-
-Adicionar um novo fabricante tende a consistir em:
-
-- mapear capabilities;
-- implementar driver concreto;
-- implementar parsers necessários;
-- registrar a resolução do driver;
-- acrescentar testes e fixtures.
-
-### Trade-off
-
-Essa abordagem cria mais classes e contratos desde cedo. Contudo, o domínio de equipamentos heterogêneos justifica esse custo, pois o ganho de isolamento de mudança supera a sobrecarga inicial.
-
-## Resolução de driver
-
-A resolução de driver deve ocorrer em uma factory ou registry central, a partir de vendor/plataforma/capability. A resolução não deve ficar espalhada por views nem por serviços arbitrários. Isso reduz branching repetitivo e facilita evolução para plugins futuros.
-
-## Sequence Diagram
-
-```mermaid
-sequenceDiagram
-    actor U as Usuário
-    participant V as View/API
-    participant S as SnapshotService
-    participant R as DeviceRepository
-    participant G as DriverRegistry
-    participant D as AP130Driver
-    participant SSH as SSHGateway
-    participant P as Parser
-    participant SR as SnapshotRepository
-
-    U->>V: Solicita coleta manual
-    V->>S: execute_snapshot(device_id)
-    S->>R: get_by_id(device_id)
-    R-->>S: Device + Credential
-    S->>G: resolve(device)
-    G-->>S: Driver concreto
-    S->>D: collect_snapshot(device)
-    D->>SSH: run commands
-    SSH-->>D: raw outputs
-    D->>P: parse outputs
-    P-->>D: domain objects
-    D-->>S: snapshot payload estruturado
-    S->>SR: persist snapshot
-    SR-->>S: snapshot persisted
-    S-->>V: result
-    V-->>U: response HTML/JSON
+```text
+View/API
+→ Service
+→ Authorization
+→ Capability Check
+→ Validation/Diff
+→ Confirmation
+→ Driver
+→ SSH Gateway
+→ Parser/Verification
+→ Repository
+→ Audit Event
+→ View/API
 ```
 
-## Package Diagram
+## Camadas
 
-```mermaid
-classDiagram
-    class apps
-    class core
-    class services
-    class repositories
-    class drivers
-    class parsers
-    class ssh
-    class exceptions
-    class config
-    apps --> services
-    services --> repositories
-    services --> drivers
-    drivers --> ssh
-    drivers --> parsers
-    repositories --> core
-    parsers --> core
-    services --> exceptions
-    drivers --> exceptions
+### Presentation
+
+Views, templates, forms, serializers e endpoints. Converte entrada em comandos de aplicação e não contém regra de vendor, ORM direto ou SSH.
+
+### Application
+
+Services que coordenam autorização, capabilities, validação, confirmação, execução, reconexão, transações, persistência e auditoria.
+
+### Domain
+
+Entidades, value objects, enums, contratos, estados de operação e regras estáveis, sem dependência de Django ou Paramiko.
+
+### Infrastructure
+
+ORM, repositories concretos, SSH, drivers, parsers, logs técnicos e adaptadores externos.
+
+## Drivers e capabilities
+
+O registry resolve driver por vendor, plataforma, modelo e eventualmente firmware. O driver deve fornecer capabilities e implementar apenas operações realmente suportadas.
+
+```python
+class DeviceCapabilities:
+    read_system_info: bool
+    read_interfaces: bool
+    read_clients: bool
+    read_ssids: bool
+    read_radios: bool
+    read_logs: bool
+    read_full_config: bool
+    configure_ssid: bool
+    configure_radio: bool
+    configure_network: bool
+    configure_vlan: bool
+    reboot: bool
+    reset_config: bool
+    factory_reset: bool
+    export_config: bool
+    import_config: bool
+    ping: bool
+    traceroute: bool
+    disconnect_client: bool
+    cli_session: bool
 ```
 
-## Componentes transversais previstos
+## Operações de configuração
 
-- logging estruturado;
-- exceptions hierárquicas;
-- constants e enums;
-- helpers de tempo e serialização;
-- cache abstraído para evolução futura;
-- scheduler desacoplado da camada web.
+Configuração deve ser estruturada, nunca implementada como texto livre no service. O driver traduz o modelo canônico para comandos, menus e etapas específicas do vendor.
 
-## Persistência dupla SQLite/PostgreSQL
+Antes da aplicação:
 
-A documentação assume SQLite para desenvolvimento local e PostgreSQL para produção. Django 5.2 suporta múltiplas versões recentes de Python e PostgreSQL 14+, o que reforça a compatibilidade da stack alvo.[web:1] O trade-off é tratar diferenças de comportamento entre SQLite e PostgreSQL, especialmente em constraints, tipos e desempenho; por isso testes críticos devem incluir PostgreSQL na CI.[web:1]
+1. carregar configuração atual;
+2. validar schema e capability;
+3. construir diff;
+4. apresentar preview;
+5. confirmar;
+6. criar backup quando possível;
+7. executar;
+8. reconectar;
+9. verificar estado final;
+10. persistir snapshot e auditoria.
 
-## Considerações de evolução
+## Reconexão
 
-- Redis não deve ser exigido para a primeira execução local.
-- Scheduler não deve depender estruturalmente do request/response web.
-- API e dashboard devem consumir os mesmos serviços de aplicação.
-- Toda regra de domínio compartilhada deve viver abaixo da camada de apresentação.
+Mudanças de IP, DHCP ou VLAN podem interromper SSH. O service deve persistir estado de execução, tentar reconexão conforme política, validar o novo endpoint e somente então concluir a operação.
+
+## Diagnóstico e CLI
+
+Ping e traceroute devem identificar origem servidor/device. Logs e configuração completa devem ser protegidos. CLI inicia como sessão controlada com comandos permitidos pelo driver, timeout e auditoria.
+
+## Dashboard
+
+O dashboard usa services e repositories sobre dados persistidos. Nunca abre SSH. Dados “atuais” devem indicar timestamp da última coleta.
+
+## Observabilidade
+
+Operações devem gerar logs estruturados e eventos com:
+
+- actor;
+- device;
+- capability;
+- operation;
+- status;
+- duration;
+- error category;
+- correlation id.
+
+## Evolução
+
+Redis, scheduler persistido, execução assíncrona e plugins permanecem desacoplados e posteriores à estabilização dos contratos de operação.

@@ -1,130 +1,119 @@
 # Roadmap do OpenNetManager
 
-## Objetivo do roadmap
+## Princípios
 
-Este roadmap define a evolução planejada do OpenNetManager a partir da Fase 0, priorizando maturidade arquitetural antes de escala funcional. Ele não é um compromisso rígido de datas, mas uma referência estratégica para ordenação de entregas, gestão de escopo e comunicação com a comunidade.
+- Segurança antes de conveniência.
+- Correção dos dados antes de volume de features.
+- Capability real antes de abstração fictícia.
+- Configuração com preview, confirmação e auditoria.
+- Novos vendors sem contaminar o núcleo.
+- Escala somente depois da estabilização operacional.
 
-## Princípios de priorização
-
-- Primeiro estabilizar fundamentos.
-- Depois entregar valor operacional mínimo.
-- Só então expandir vendors, automação e escala.
-- Nunca trocar velocidade de curto prazo por erosão da arquitetura multi-vendor.
-
-## Fase 0 — Fundação documental e arquitetural
+## Fase 0 — Fundação
 
 ### Objetivos
 
-- Consolidar contexto, visão e requisitos.
-- Definir arquitetura, camadas, contratos e ADRs.
-- Modelar domínio, banco e estratégia de testes.
-- Estabelecer segurança, qualidade, CI/CD e governança Open Source.
-
-### Entregáveis-chave
-
-- documentação completa de engenharia;
-- diretrizes de contribuição;
-- decisões arquiteturais registradas;
-- estratégia de implementação pronta para equipe senior.
+- Consolidar visão multi-vendor de gerenciamento operacional.
+- Documentar requisitos de coleta, configuração, manutenção e diagnóstico.
+- Definir domínio de capabilities, operações e auditoria.
+- Registrar ADRs.
+- Garantir estratégia de segurança e testes.
 
 ### Critério de saída
 
-A equipe consegue iniciar implementação sem ambiguidade estrutural relevante.
+Documentação, contratos e riscos permitem implementação sem ambiguidade estrutural relevante.
 
-## Fase 1 — Núcleo funcional inicial
+## Fase 1 — Núcleo funcional
 
-### Objetivos
+### Entregas
 
-- Implementar autenticação e autorização básicas.
-- Implementar cadastro de dispositivos e credenciais.
-- Implementar driver AP130 via SSH.
-- Implementar parsers iniciais para informações de sistema e interfaces.
-- Implementar snapshots manuais e dashboard básico.
-- Publicar API REST mínima versionada.
+- Autenticação e autorização básicas.
+- Inventário.
+- Credenciais.
+- Coleta SSH.
+- AP130 e GWN7600.
+- Parsers de sistema, interfaces e clientes.
+- Snapshots.
+- Eventos.
+- Dashboard inicial.
+- API mínima.
 
-### Resultado esperado
+### Estado
 
-A plataforma já oferece gerenciamento inicial de inventário e coleta básica funcional para AP130, preservando a arquitetura multi-vendor.
-
-### Riscos aceitos
-
-- cobertura funcional ainda limitada;
-- UX operacional ainda simples;
-- ausência de scheduler avançado;
-- ausência de cache distribuído.
+Majoritariamente implementada, em consolidação e validação.
 
 ## Fase 2 — Consolidação operacional
 
-### Objetivos
+### Entregas
 
-- Adicionar coleta de clientes e eventos suportados.
-- Implementar histórico e comparação de snapshots.
-- Expandir testes de integração e E2E.
-- Melhorar dashboard, filtros, paginação e rastreabilidade.
-- Endurecer políticas de segurança e auditoria.
+- Dashboard avançado.
+- SSIDs e rádios.
+- Métricas de upload/download.
+- Ranking de clientes e SSIDs.
+- Histórico de clientes.
+- Logs.
+- Configuração completa.
+- Ping e traceroute.
+- Comparação de snapshots.
+- Auditoria completa.
+- Tela detalhada de clientes.
 
-### Resultado esperado
+### Critério de saída
 
-O produto passa de protótipo funcional para ferramenta operacional inicial confiável.
+Operador consegue observar e diagnosticar o ambiente sem depender da CLI manual para tarefas comuns.
 
-## Fase 3 — Escalabilidade controlada
+## Fase 3 — Configuração segura
 
-### Objetivos
+### Entregas
 
-- Introduzir scheduler persistido.
-- Planejar ou introduzir Redis para cache e coordenação futura.
-- Evoluir execução assíncrona de coletas.
-- Implementar limites de concorrência e backoff por dispositivo.
-- Aumentar observabilidade operacional.
+- Configuração de SSID.
+- Configuração de rádio.
+- DHCP.
+- IP fixo.
+- VLAN de gerenciamento.
+- VLAN de SSID.
+- Preview e diff.
+- Backup automático.
+- Reconexão.
+- Verificação pós-aplicação.
 
-### Resultado esperado
+### Critério de saída
 
-O sistema passa a suportar volume maior de coletas, melhor previsibilidade operacional e menor latência percebida.
+Alterações suportadas podem ser aplicadas com autorização, confirmação, auditoria e resultado verificável.
 
-## Fase 4 — Expansão multi-vendor
+## Fase 4 — Manutenção e operações de clientes
 
-### Objetivos
+### Entregas
 
-- Adicionar novos drivers e parsers para Cisco, Huawei, Juniper, Mikrotik, Aruba e Ubiquiti.
-- Criar matriz de capabilities por fabricante/plataforma.
-- Expandir modelo de comandos suportados por feature.
-- Validar o desenho arquitetural sob diversidade real de vendors.
+- Reboot.
+- Reset de serviço e configuração.
+- Export/import versionados.
+- Factory reset protegido.
+- Desautenticação temporária.
+- CLI controlada.
 
-### Resultado esperado
+### Critério de saída
 
-O OpenNetManager se consolida como plataforma multi-vendor, não apenas como integração AP130.
+Ações operacionais sensíveis estão protegidas, auditadas e testadas por driver.
 
-## Fase 5 — Ecossistema e extensibilidade
+## Fase 5 — Escala e ecossistema
 
-### Objetivos
+### Entregas
 
-- Melhorar API pública e documentação OpenAPI.
-- Explorar mecanismos de plugin/extensão.
-- Adicionar webhooks, exportações e integrações externas.
-- Fortalecer governança de releases e comunidade.
+- Scheduler persistido.
+- Execução assíncrona.
+- Redis.
+- Limites de concorrência.
+- Backoff por dispositivo.
+- Plugins.
+- API pública ampliada.
+- Novos vendors: Cisco, Huawei, Juniper, Mikrotik, Aruba e Ubiquiti.
 
-### Resultado esperado
+## Fora do escopo imediato
 
-O projeto amadurece como produto Open Source com potencial de ecossistema.
-
-## Itens explicitamente fora da Fase 0
-
-- suporte multi-vendor implementado em código;
-- filas distribuídas completas;
-- auto-discovery em rede;
-- execução massiva em paralelo;
-- RBAC avançado granular por objeto;
-- alta disponibilidade nativa;
-- suporte SNMP/NETCONF/gNMI na primeira iteração.
-
-## Critérios de priorização contínua
-
-Quando houver disputa de backlog, a ordem de preferência é:
-
-1. Segurança.
-2. Correção dos dados.
-3. Preservação da arquitetura.
-4. Testabilidade e observabilidade.
-5. Valor operacional para o usuário.
-6. Conveniência de UX.
-7. Otimizações prematuras.
+- Shell SSH totalmente livre.
+- Auto-discovery amplo.
+- Alta disponibilidade nativa.
+- Rollback universal entre vendors.
+- Monitoramento em tempo real sem janela de coleta definida.
+- Configuração de capabilities sem validação em equipamento real.
