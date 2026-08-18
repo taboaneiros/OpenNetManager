@@ -1,142 +1,490 @@
-# Modelo de Domínio
+# Modelo de Domínio do OpenNetManager
 
-## Objetivo
+## 1. Objetivo
 
-Definir o modelo conceitual principal do OpenNetManager para orientar entidades persistidas, contratos de serviço, payloads de API e semântica de parsing.
+Este documento define o modelo conceitual do OpenNetManager como plataforma de gerenciamento operacional multi-vendor. O modelo deve orientar entidades persistidas, objetos de domínio, contratos de service, payloads de API, parsers, drivers, auditoria e evolução futura.
 
-## Princípios de modelagem
+O domínio precisa distinguir:
 
-- nomear entidades pelo significado operacional, não pela origem do vendor;
-- distinguir claramente estado atual de histórico coletado;
-- permitir expansão futura sem remodelagem destrutiva;
-- evitar atributos genéricos opacos quando a semântica for conhecida;
-- encapsular particularidades por vendor em metadados extensíveis, não no núcleo nominal.
+- identidade administrativa do dispositivo;
+- estado operacional observado;
+- configuração desejada e configuração aplicada;
+- fatos históricos coletados;
+- operações executadas;
+- ações de usuários;
+- capacidades reais do vendor.
 
-## Entidades principais
+## 2. Princípios de modelagem
 
-### Device
+- Nomear pelo significado operacional, não pelo comando de um vendor.
+- Distinguir estado atual, estado observado e estado desejado.
+- Preservar histórico e não sobrescrever fatos coletados.
+- Representar capabilities explicitamente.
+- Evitar `dict` genérico quando a semântica for conhecida.
+- Usar extensões controladas para vendor-specific options.
+- Separar segredo de configuração comum.
+- Associar métricas a timestamp, origem e janela.
+- Modelar operações destrutivas como entidades rastreáveis.
+- Permitir resposta explícita para capability ausente.
 
-Representa um ativo de rede gerenciado pela plataforma.
+## 3. Entidades principais
 
-Responsabilidades conceituais:
+### 3.1 Device
 
-- identificar o dispositivo no inventário;
-- registrar vendor, plataforma e endpoint de conexão;
-- associar credencial principal;
-- guardar metadados administrativos e operacionais básicos;
-- servir como agregado-raiz para snapshots e relações operacionais.
+Representa o ativo gerenciado e é o agregado-raiz do inventário.
 
-Atributos conceituais mínimos:
+Atributos conceituais:
 
-- id
-- name
-- vendor
-- platform
-- hostname_or_ip
-- ssh_port
-- status
-- environment/tagging
-- credential reference
-- description
-- timestamps
-
-### Credential
-
-Representa material de autenticação associado a um ou mais dispositivos.
+- `id`;
+- `name`;
+- `hostname`;
+- `management_ip`;
+- `vendor`;
+- `platform`;
+- `model`;
+- `firmware`;
+- `ssh_port`;
+- `status`;
+- `administrative_state`;
+- `credential_ref`;
+- `driver_key`;
+- `environment`;
+- `tags`;
+- `description`;
+- `last_seen_at`;
+- `last_snapshot_id`;
+- `created_at`;
+- `updated_at`.
 
 Responsabilidades:
 
-- definir tipo de autenticação;
-- armazenar usuário e segredo protegido;
-- permitir rotação e auditoria;
-- separar segredo do restante do inventário.
+- identificar o ativo;
+- fornecer metadados para resolução de driver;
+- controlar elegibilidade operacional;
+- referenciar credencial;
+- manter vínculo com snapshots, operações e auditoria.
 
-### Snapshot
+O Device não deve conter comandos ou regras específicas de vendor.
 
-Representa uma coleta consistente executada para um dispositivo em um instante lógico.
+### 3.2 Credential
 
-Responsabilidades:
+Representa material de autenticação protegido.
 
-- delimitar uma execução de coleta;
-- registrar status, duração, origem e versão de coleta;
-- servir de contêiner histórico para SystemInfo, Interface, Client e Event correlacionáveis.
+Atributos:
 
-### SystemInfo
+- `id`;
+- `name`;
+- `auth_type`;
+- `username`;
+- `secret_reference`;
+- `host_key_reference`;
+- `is_active`;
+- `rotated_at`;
+- `created_at`.
 
-Representa informações de sistema coletadas de um dispositivo em um snapshot específico.
+Regras:
 
-Exemplos conceituais:
+- segredo nunca retorna em serialização normal;
+- rotação é auditável;
+- uma credencial pode ser associada a vários dispositivos conforme política;
+- armazenamento deve permitir substituição por secret manager futuro.
 
-- hostname reportado;
+### 3.3 DeviceCapabilities
+
+Value object ou contrato associado ao driver/modelo.
+
+```python
+class DeviceCapabilities:
+    read_system_info: bool
+    read_interfaces: bool
+    read_clients: bool
+    read_ssids: bool
+    read_radios: bool
+    read_logs: bool
+    read_full_config: bool
+    configure_ssid: bool
+    configure_radio: bool
+    configure_network: bool
+    configure_vlan: bool
+    reboot: bool
+    reset_config: bool
+    factory_reset: bool
+    export_config: bool
+    import_config: bool
+    ping: bool
+    traceroute: bool
+    disconnect_client: bool
+    cli_session: bool
+```
+
+As capabilities podem ser resolvidas por vendor, plataforma, modelo e firmware. Não se deve assumir que dois modelos do mesmo vendor possuam a mesma matriz.
+
+### 3.4 Snapshot
+
+Representa uma coleta em um instante lógico.
+
+Atributos:
+
+- `id`;
+- `device_id`;
+- `collected_at`;
+- `started_at`;
+- `finished_at`;
+- `duration_ms`;
+- `status`;
+- `trigger_source`;
+- `driver_key`;
+- `driver_version`;
+- `payload`;
+- `raw_reference`;
+- `parser_warnings`;
+- `correlation_id`.
+
+Status:
+
+```text
+pending
+running
+success
+partial_success
+failed
+timeout
+```
+
+Um snapshot representa fato histórico e não deve ser editado para “corrigir” o passado.
+
+### 3.5 SystemInfo
+
+Informações de sistema observadas em Snapshot:
+
+- hostname;
 - modelo;
-- vendor/plataforma observada;
-- versão de firmware/OS;
+- vendor;
+- plataforma;
+- firmware;
+- serial;
+- boot version;
 - uptime;
-- serial, quando disponível.
+- versão de hardware;
+- capabilities observadas.
 
-### Interface
+### 3.6 InterfaceData
 
-Representa o estado coletado de uma interface no contexto de um snapshot.
+Representa interface física, lógica ou rádio observada.
 
-Exemplos conceituais:
+Campos possíveis:
 
-- nome lógico;
-- descrição;
+- nome;
+- tipo;
 - MAC;
-- MTU;
 - estado administrativo;
 - estado operacional;
 - velocidade;
-- counters suportados;
-- VLAN ou associação relevante quando existir.
+- largura de canal;
+- canal;
+- banda;
+- rádio;
+- VLAN;
+- SSID;
+- contadores;
+- timestamp.
 
-### Client
+### 3.7 WifiProfile
 
-Representa cliente conectado ou observado pelo dispositivo, quando essa semântica for suportada pela plataforma.
+Representa um perfil configurável de Wi-Fi.
 
-Exemplos conceituais:
+Campos:
 
-- identificador ou MAC do cliente;
-- interface ou rádio associado;
-- IP observado;
+- `name`;
+- `ssid`;
+- `enabled`;
+- `security_mode`;
+- `secret_reference`;
+- `hidden`;
+- `vlan_id`;
+- `bands`;
+- `client_isolation`;
+- `max_clients`;
+- `vendor_options`;
+- `version`.
+
+A senha não deve compor payload comum, snapshot não protegido ou export redacted.
+
+### 3.8 RadioConfiguration
+
+Representa configuração desejada ou observada de rádio.
+
+Campos:
+
+- banda;
+- habilitado;
+- canal;
+- modo de seleção de canal;
+- largura;
+- potência;
+- modo;
+- minimum RSSI;
+- airtime fairness;
+- band steering;
+- rádio físico;
+- opções do vendor.
+
+### 3.9 NetworkConfiguration
+
+Representa configuração de gerenciamento.
+
+Campos:
+
+- modo `dhcp` ou `static`;
+- endereço IP;
+- prefixo;
+- gateway;
+- DNS;
+- hostname;
+- interface de gerenciamento;
+- VLAN de gerenciamento;
+- opções do vendor.
+
+Alteração pode exigir estado `reconnecting`.
+
+### 3.10 VlanConfiguration
+
+Representa VLAN e seu papel.
+
+Campos:
+
+- VLAN ID;
+- papel: management, access, native, trunk ou service;
+- tagged;
+- untagged;
+- native VLAN;
+- allowed VLANs;
+- interface;
+- SSID associado;
+- opções do vendor.
+
+### 3.11 ClientData
+
+Representa cliente observado em Snapshot.
+
+Campos:
+
+- MAC;
+- hostname;
+- IP;
+- IPv6;
+- SSID;
+- device/AP;
+- rádio;
+- banda;
+- canal;
+- sinal/RSSI;
+- upload rate;
+- download rate;
+- bytes transmitidos;
+- bytes recebidos;
+- tempo conectado;
+- última atividade;
 - estado;
-- métricas suportadas;
-- timestamps de observação.
+- OS;
+- OS confidence;
+- origem;
+- observed_at.
 
-### Event
+OS confidence:
 
-Representa evento operacional, técnico ou de auditoria associado ao dispositivo ou a uma coleta.
+```text
+known
+inferred
+unknown
+unsupported
+```
 
-Exemplos:
+### 3.12 ClientOperation
 
-- falha de autenticação SSH;
-- coleta concluída com sucesso;
+Representa uma ação sobre cliente.
+
+A primeira operação é `disconnect`, para desautenticação temporária.
+
+Campos:
+
+- cliente/MAC;
+- SSID;
+- device;
+- operação;
+- usuário;
+- capability;
+- estado;
+- resultado;
+- timestamp;
+- mensagem;
+- auditoria.
+
+Desautenticação não equivale a bloqueio permanente.
+
+### 3.13 ConfigurationSnapshot
+
+Representa uma versão de configuração antes ou depois de uma operação.
+
+Campos:
+
+- device;
+- vendor;
+- plataforma;
+- schema version;
+- configuração normalizada;
+- raw protegido;
+- redacted;
+- checksum;
+- origem;
+- collected_at;
+- operation id.
+
+### 3.14 ConfigurationOperation
+
+Representa alteração desejada ou aplicada.
+
+Campos:
+
+- operação;
+- estado inicial;
+- estado desejado;
+- diff;
+- capability;
+- usuário;
+- confirmação;
+- backup;
+- resultado;
+- erro;
+- timestamps;
+- correlation id.
+
+### 3.15 MaintenanceOperation
+
+Representa reboot, reset, export, import ou factory reset.
+
+O tipo de manutenção deve ser explícito; não usar campo genérico `reset` para efeitos diferentes.
+
+### 3.16 DiagnosticResult
+
+Representa ping, traceroute ou diagnóstico equivalente.
+
+Campos:
+
+- operação;
+- origem: server ou device;
+- destino;
+- início/fim;
+- sucesso;
+- perda;
+- latência mínima/média/máxima;
+- saltos;
+- stdout;
+- stderr;
+- erro normalizado;
+- capability;
+- auditoria.
+
+### 3.17 DeviceLog
+
+Representa log coletado do dispositivo.
+
+Campos:
+
+- device;
+- timestamp do evento;
+- severidade;
+- categoria;
+- mensagem;
+- origem;
+- raw;
+- collected_at.
+
+### 3.18 CliSession
+
+Representa sessão CLI controlada.
+
+Campos:
+
+- usuário;
+- device;
+- início/fim;
+- timeout;
+- comandos executados;
+- comandos bloqueados;
+- saída protegida;
+- status;
+- correlation id.
+
+### 3.19 Event
+
+Representa evento operacional ou técnico:
+
+- coleta concluída;
+- falha SSH;
 - parsing parcial;
-- credencial rotacionada;
-- job desabilitado.
+- cliente entrou;
+- cliente saiu;
+- cliente alterado;
+- device reiniciado;
+- configuração alterada;
+- reconexão;
+- capability ausente.
 
-### CollectionJob
+### 3.20 AuditEvent
 
-Representa uma definição persistida de coleta futura, manualmente acionável ou recorrente.
+Representa rastreabilidade de ação sensível.
 
-Responsabilidades:
+Campos:
 
-- registrar tipo de coleta;
-- registrar periodicidade/agenda;
-- controlar habilitação;
-- servir de base para scheduler futuro.
+- ator;
+- device;
+- tipo de operação;
+- capability;
+- estado anterior;
+- estado posterior;
+- resultado;
+- timestamp;
+- IP de origem da sessão;
+- correlation id;
+- snapshot/backup relacionado.
 
-## Agregados sugeridos
+Auditoria deve ser append-only para usuários comuns.
 
-### Agregado Device
+### 3.21 CollectionJob
 
-`Device` é o agregado principal para inventário e eixo lógico de relacionamento. Credencial é associada, mas seu ciclo de segurança justifica tratamento cuidadoso separado. Snapshots se relacionam a Device como histórico, não como estado embutido único.
+Representa coleta futura.
 
-### Agregado Snapshot
+Campos:
 
-`Snapshot` funciona como agregado histórico de coleta e pode conter ou referenciar `SystemInfo`, `Interface`, `Client` e `Event` correlatos. Isso preserva auditabilidade temporal e evita sobrescrever fatos operacionais com estado atual não versionado.
+- device;
+- tipo;
+- intervalo ou expressão;
+- enabled;
+- próxima execução;
+- última execução;
+- política de retry;
+- janela de coleta.
 
-## Class Diagram
+## 4. Agregados
+
+### Device Aggregate
+
+Inclui identidade, endpoint, estado administrativo, credencial referenciada e capabilities resolvidas. Não deve embutir todo histórico.
+
+### Snapshot Aggregate
+
+Inclui SystemInfo, interfaces, clientes, SSIDs, rádios, eventos de coleta e referências ao raw.
+
+### Configuration Aggregate
+
+Inclui estado desejado, diff, snapshot anterior, snapshot novo e resultado da operação.
+
+### Operation Aggregate
+
+Inclui intenção, usuário, capability, estados, resultado, erro e auditoria.
+
+## 5. Relações
 
 ```mermaid
 classDiagram
@@ -145,18 +493,27 @@ classDiagram
         +string name
         +string vendor
         +string platform
-        +string hostname_or_ip
+        +string model
+        +string management_ip
         +int ssh_port
         +string status
     }
 
     class Credential {
         +UUID id
-        +string name
         +string auth_type
         +string username
-        +secret secret_material
+        +secret secret_reference
         +bool is_active
+    }
+
+    class DeviceCapabilities {
+        +bool read_clients
+        +bool configure_ssid
+        +bool configure_network
+        +bool reboot
+        +bool factory_reset
+        +bool cli_session
     }
 
     class Snapshot {
@@ -168,57 +525,102 @@ classDiagram
     }
 
     class SystemInfo {
-        +UUID id
         +string hostname
         +string model
-        +string firmware_version
-        +string serial_number
-        +string uptime_raw
+        +string firmware
+        +string serial
+        +string uptime
     }
 
-    class Interface {
-        +UUID id
+    class InterfaceData {
         +string name
-        +string admin_status
         +string oper_status
-        +string mac_address
         +string speed
+        +string channel
+        +string vlan
     }
 
-    class Client {
-        +UUID id
-        +string mac_address
+    class WifiProfile {
+        +string ssid
+        +string security_mode
+        +int vlan_id
+        +bool enabled
+    }
+
+    class RadioConfiguration {
+        +string band
+        +string channel
+        +string width
+        +string tx_power
+    }
+
+    class NetworkConfiguration {
+        +string addressing_mode
         +string ip_address
-        +string state
-        +string interface_name
+        +string gateway
+        +string management_vlan
+    }
+
+    class ClientData {
+        +string mac
+        +string ip
+        +string ssid
+        +string radio
+        +int signal
+        +string rx
+        +string tx
+        +string os
+        +string os_confidence
+    }
+
+    class ConfigurationSnapshot {
+        +string schema_version
+        +string checksum
+        +bool redacted
+        +datetime collected_at
+    }
+
+    class OperationResult {
+        +UUID id
+        +string operation
+        +string status
+        +string message
+        +datetime started_at
+        +datetime finished_at
     }
 
     class Event {
-        +UUID id
         +string category
         +string severity
         +string message
         +datetime occurred_at
     }
 
-    class CollectionJob {
-        +UUID id
-        +string job_type
-        +string schedule_expression
-        +bool enabled
-        +datetime next_run_at
+    class AuditEvent {
+        +string actor
+        +string action
+        +string result
+        +datetime occurred_at
     }
 
-    Device --> Credential : uses
+    Device --> Credential : references
+    Device --> DeviceCapabilities : exposes
     Device --> Snapshot : owns history
     Snapshot --> SystemInfo : contains
-    Snapshot --> Interface : contains
-    Snapshot --> Client : contains
-    Snapshot --> Event : records
-    Device --> CollectionJob : scheduled by
+    Snapshot --> InterfaceData : contains
+    Snapshot --> ClientData : contains
+    Device --> WifiProfile : configures
+    Device --> RadioConfiguration : configures
+    Device --> NetworkConfiguration : configures
+    Device --> ConfigurationSnapshot : versions
+    Device --> OperationResult : executes
+    Device --> Event : emits
+    OperationResult --> AuditEvent : produces
 ```
 
-## State Diagram do snapshot
+## 6. Estados
+
+### Snapshot
 
 ```mermaid
 stateDiagram-v2
@@ -228,22 +630,72 @@ stateDiagram-v2
     running --> partial_success
     running --> failed
     running --> timeout
-    failed --> [*]
-    timeout --> [*]
     success --> [*]
     partial_success --> [*]
+    failed --> [*]
+    timeout --> [*]
 ```
 
-## Decisões importantes
+### Operação
 
-### Histórico como entidade explícita
+```mermaid
+stateDiagram-v2
+    [*] --> pending
+    pending --> validating
+    validating --> awaiting_confirmation
+    validating --> failed
+    awaiting_confirmation --> executing
+    awaiting_confirmation --> cancelled
+    executing --> reconnecting
+    executing --> verifying
+    executing --> failed
+    reconnecting --> verifying
+    reconnecting --> timeout
+    verifying --> succeeded
+    verifying --> partially_succeeded
+    verifying --> failed
+    succeeded --> [*]
+    partially_succeeded --> [*]
+    failed --> [*]
+    timeout --> [*]
+    cancelled --> [*]
+```
 
-Snapshots são entidades de primeira classe porque a plataforma precisa rastrear quando e como um dado foi coletado. O trade-off é maior volume de dados e consultas mais complexas, porém isso é preferível a sobrescrever estado e perder auditabilidade.
+## 7. Regras de domínio
 
-### Dados normalizados por snapshot
+- Device inativo não aceita coleta normal nem alteração não emergencial.
+- Capability deve ser verificada antes de operação.
+- Operação destrutiva exige autorização e confirmação.
+- Configuração desejada não significa configuração aplicada.
+- Configuração aplicada só deve ser registrada após verificação.
+- Mudança de IP/VLAN pode deixar operação em reconexão.
+- Snapshot é imutável depois de concluído.
+- Raw output deve preservar contexto, mas não segredos.
+- Cliente pertence ao snapshot em que foi observado.
+- Taxas de tráfego precisam de janela e timestamp.
+- OS inferido precisa de nível de confiança.
+- Desautenticação não é bloqueio.
+- Factory reset deve referenciar backup ou registrar ausência explícita.
+- Auditoria não deve ser apagada por operações comuns.
 
-Interfaces, clientes e system info devem ser relacionados ao snapshot específico em que foram observados. Isso evita inconsistência temporal entre tabelas e facilita depuração de regressões de parser.
+## 8. Decisões de modelagem
 
-### Event como domínio misto
+### Histórico explícito
 
-`Event` é útil tanto para domínio operacional quanto para auditoria técnica. O trade-off é a necessidade futura de taxonomia clara para não misturar telemetria, auditoria e erro de sistema de forma caótica; essa taxonomia será aprofundada em documentação específica posterior.
+Snapshots e ConfigurationSnapshots são entidades de primeira classe porque estado atual isolado não explica quando, como e por que uma informação foi obtida ou alterada.
+
+### Estado observado versus desejado
+
+Configuração observada pelo device e configuração desejada pelo usuário são conceitos diferentes. Essa separação permite diff, validação, drift detection e rollback futuro.
+
+### Capabilities como contrato
+
+A existência de um driver não significa suporte universal. Capabilities evitam que a interface ofereça ações que o equipamento não suporta.
+
+### Vendor options controladas
+
+Parâmetros específicos podem existir em estrutura extensível, mas não devem substituir campos canônicos nem vazar para o domínio central como comandos.
+
+### Raw protegido
+
+Raw é importante para diagnóstico e evolução dos parsers, mas deve possuir retenção, autorização e mascaramento adequados.
