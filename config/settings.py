@@ -19,7 +19,7 @@ environ.Env.read_env(BASE_DIR / ".env")
 # 3. Configurações essenciais de Segurança e Debug
 DEBUG = env.bool("DEBUG", default=True)
 SECRET_KEY = env("SECRET_KEY", default="django-insecure-opennetmanager-dev")
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["127.0.0.1", "localhost"])
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["0.0.0.0","127.0.0.1", "localhost"])
 
 # 4. Definição de Aplicações (União das listas de apps sem duplicatas)
 INSTALLED_APPS = [
