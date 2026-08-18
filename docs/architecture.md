@@ -1,248 +1,452 @@
-# Arquitetura do OpenNetManager
+# Arquitetura Técnica do OpenNetManager
 
-## Propósito arquitetural
+## 1. Objetivo
 
-A arquitetura do OpenNetManager foi desenhada para permitir gerenciamento de dispositivos de rede por múltiplos fabricantes sem acoplamento entre a lógica de negócio e o protocolo, o fornecedor ou o formato textual da resposta remota. O suporte inicial ao AP130 via SSH é tratado como uma implementação concreta de uma abstração mais ampla, não como o centro do sistema.
+Este documento define a arquitetura interna do OpenNetManager como uma plataforma multi-vendor de gerenciamento operacional de access points e dispositivos de rede.
 
-## Drivers arquiteturais
+A arquitetura deve suportar, sem acoplamento estrutural a um fabricante:
 
-Os principais drivers arquiteturais do sistema são:
+- inventário e credenciais;
+- coleta operacional via SSH;
+- parsing e normalização;
+- snapshots e histórico;
+- configuração de SSID e rádio;
+- DHCP, IP fixo e VLAN;
+- reboot, reset, export e import;
+- ping, traceroute, logs e configuração completa;
+- clientes conectados e desautenticação;
+- dashboard operacional;
+- CLI controlada;
+- auditoria de ações sensíveis.
 
-- Multi-vendor desde a origem.
-- Evolução incremental sem reescrita estrutural.
-- Separação estrita de responsabilidades.
-- Baixo acoplamento entre UI, domínio e infraestrutura.
-- Testabilidade elevada por unidade e por integração.
-- Segurança por padrão para credenciais e acesso administrativo.
-- Operação simples na Fase 0, com caminho claro para escalar.
+O primeiro suporte concreto é o Extreme Networks AP130 via SSH, com fluxos CLI particularmente complexos. O Grandstream GWN7600 também possui suporte concreto. Essas integrações devem validar a arquitetura multi-vendor, não substituir seus contratos por lógica específica de um equipamento.
 
-## Estilo adotado
+## 2. Estilo arquitetural
 
-O sistema adota uma combinação pragmática de arquitetura em camadas com princípios de Clean Architecture e DDD Lite. A solução usa fronteiras explícitas entre apresentação, aplicação, domínio e infraestrutura, porém sem introduzir complexidade excessiva de um framework arquitetural próprio.
+O projeto adota um monólito modular com camadas explícitas, inspirado em Clean Architecture, DDD Lite e separação rigorosa de responsabilidades.
 
-### Camadas lógicas
+A escolha por monólito modular evita complexidade prematura de rede, deployment e observabilidade distribuída. O isolamento é obtido por contratos, dependências direcionadas, services, repositories, drivers, parsers e testes arquiteturais.
 
-| Camada | Responsabilidade | Pode conhecer | Não pode conhecer |
-|---|---|---|---|
-| View | Receber requisição HTTP, validar entrada superficial, invocar serviços, retornar HTML/JSON | DTOs, serializers, services | ORM direto, SSH, parsers |
-| Service | Orquestrar casos de uso, invariantes, políticas e transações | repositories, drivers, domain objects | detalhes de template, request HTTP bruto |
-| Repository | Persistência e consulta | models, query building, transações | transporte SSH, parsing de CLI |
-| Driver | Orquestrar comandos por fabricante e tipo de coleta | ssh client abstractions, parsers, domain objects | ORM, templates, regras de UI |
-| SSH | Gerenciar sessão remota, autenticação, execução e erros de transporte | Paramiko, políticas de conexão | persistência, parsing de negócio |
-| Parser | Converter saída bruta em objetos estruturados | schemas de parser, domain objects | conexão, ORM, request web |
-| Domain Objects | Representar entidades e estruturas de negócio | tipos e invariantes de domínio | detalhes de infraestrutura |
+### Princípios
 
-## Fluxo principal
+- SOLID.
+- Clean Architecture como referência de dependências.
+- Repository Pattern para persistência.
+- Service Layer para casos de uso.
+- Driver Pattern para vendors.
+- Parser Pattern para saída textual.
+- Dependency Injection nas fronteiras centrais.
+- DDD Lite para entidades, value objects e agregados.
+- DRY, KISS e YAGNI.
+- Nenhuma lógica de vendor em views ou no domínio genérico.
 
-```mermaid
-flowchart TD
-    A[View] --> B[Service]
-    B --> C[Repository]
-    B --> D[Driver]
-    D --> E[SSH Client]
-    E --> F[Raw CLI Output]
-    F --> G[Parser]
-    G --> H[Domain Objects]
-    H --> B
-    B --> C
-```
+## 3. Camadas
 
-O detalhe importante é que o serviço orquestra tanto leitura em repositório quanto coleta por driver; o repositório não invoca driver e o driver não persiste dados. Esse desenho reduz ciclos indevidos, evita vazamento de infraestrutura para a apresentação e permite testes isolados por contrato.
+### 3.1 Presentation Layer
 
-## Organização estrutural
+Inclui views Django, templates, forms, serializers DRF, endpoints HTTP e componentes HTMX.
 
-### Apps Django
+Responsabilidades:
 
-- `authentication/`: login, logout, autorização e perfis de acesso.
-- `dashboard/`: páginas de visão operacional e navegação principal.
-- `devices/`: cadastro, credenciais associadas e detalhes de inventário.
-- `monitoring/`: snapshots, jobs, eventos e histórico de coleta.
-- `api/`: endpoints REST, serializers e versionamento.
+- autenticar e receber intenção do usuário;
+- validar formato básico de entrada;
+- chamar services;
+- apresentar dados e resultados;
+- solicitar confirmação de operações sensíveis;
+- exibir capability ausente e estados de operação.
 
-### Pacotes transversais
+Restrições:
 
-- `core/`: contratos centrais, utilitários arquiteturais e componentes compartilhados.
-- `drivers/`: abstrações e implementações por fabricante.
-- `services/`: casos de uso e orquestração de aplicação.
-- `repositories/`: persistência desacoplada do domínio de uso.
-- `parsers/`: parsing por contexto e fabricante.
-- `ssh/`: transporte, conexão, política de timeout e retries.
-- `exceptions/`: hierarquia de erros de negócio e infraestrutura.
-- `constants/`: enums e constantes funcionais.
-- `cache/`: futuras abstrações de cache.
-- `logging/`: configuração estruturada de logs.
-- `config/`: settings, ambiente, bootstrap e configuração de deploy.
+- não acessa ORM diretamente;
+- não abre SSH;
+- não escolhe comandos;
+- não contém regras de negócio profundas;
+- não possui condicionais distribuídas por vendor.
 
-## Abstrações centrais
+### 3.2 Application Layer
 
-### 1. Device Vendor Abstraction
+É composta pelos services e coordena casos de uso.
 
-Todo dispositivo deve declarar um `vendor`, um `platform` e um `capability profile`. Essa distinção é importante porque fabricante e plataforma nem sempre se relacionam de forma unívoca no futuro. O trade-off é um modelo um pouco mais rico na origem, porém ele evita remodelagem quando surgirem linhas diferentes dentro do mesmo fabricante.
+Responsabilidades:
 
-### 2. Driver Contract
+- autorização;
+- validação de estado;
+- verificação de capability;
+- construção de diff;
+- confirmação;
+- controle de transações;
+- resolução de driver;
+- reconexão;
+- verificação pós-operação;
+- persistência;
+- auditoria;
+- tradução de falhas técnicas.
 
-Um driver representa a capacidade de conectar e coletar dados de uma plataforma específica. Ele não modela persistência nem HTTP. A interface mínima do driver deve prever:
+### 3.3 Domain Layer
 
-- validação de suporte ao dispositivo;
-- coleta de `system_info`;
-- coleta de `interfaces`;
-- coleta de `clients` quando suportado;
-- execução de snapshot agregada;
-- normalização de erros de transporte.
+Contém contratos e semântica estável:
 
-### 3. Parser Contract
+- Device;
+- Credential;
+- Snapshot;
+- WifiProfile;
+- RadioConfiguration;
+- NetworkConfiguration;
+- VlanConfiguration;
+- DeviceCapabilities;
+- ClientData;
+- DiagnosticResult;
+- OperationResult;
+- AuditEvent;
+- enums e estados.
 
-O parser recebe texto bruto e contexto do comando. Sua única responsabilidade é converter saída textual em objetos estruturados ou lançar exceções de parsing semanticamente úteis. O trade-off é multiplicar classes pequenas, mas isso reduz muito o acoplamento com mudanças de firmware.
+O domínio não depende de Django ORM, Paramiko, HTML ou formato de CLI.
 
-### 4. Repository Contract
+### 3.4 Infrastructure Layer
 
-Repositories encapsulam queries, save/update, lock lógico e mapeamento entre modelos persistidos e necessidades da aplicação. O uso do padrão evita espalhar ORM por views e serviços. O trade-off é criar uma camada adicional, porém esse custo é aceitável em troca de legibilidade, testabilidade e intercambialidade de persistência.
+Inclui:
 
-## Diagrama de contexto
+- modelos ORM;
+- repositories concretos;
+- gateway SSH;
+- driver registry;
+- drivers de vendor;
+- parsers;
+- logging técnico;
+- armazenamento de raw output;
+- adaptadores externos.
 
-```mermaid
-C4Context
-    title Context Diagram - OpenNetManager
-    Person(admin, "Administrador", "Opera a plataforma e gerencia dispositivos")
-    Person(operator, "Operador", "Consulta dashboards e executa coletas autorizadas")
-    Person(dev, "Contribuidor", "Mantém e evolui o projeto Open Source")
-    System(system, "OpenNetManager", "Plataforma de gerenciamento de dispositivos de rede")
-    System_Ext(device, "Dispositivo de Rede", "AP130 inicialmente; outros vendors no futuro")
-    System_Ext(db, "Banco de Dados", "SQLite em dev, PostgreSQL em produção")
-    System_Ext(ci, "GitHub Actions", "CI/CD, qualidade e automação")
-
-    Rel(admin, system, "Administra, cadastra dispositivos, revisa eventos")
-    Rel(operator, system, "Consulta dashboard, inventário e snapshots")
-    Rel(dev, system, "Contribui via código, testes e documentação")
-    Rel(system, device, "Conecta via SSH para coleta")
-    Rel(system, db, "Persiste inventário, snapshots, eventos e credenciais")
-    Rel(ci, system, "Executa build, testes e verificações")
-```
-
-## Diagrama de containers
-
-```mermaid
-C4Container
-    title Container Diagram - OpenNetManager
-    Person(user, "Usuário")
-    System_Boundary(onm, "OpenNetManager") {
-        Container(web, "Django Web App", "Django 5.2 + HTMX + Bootstrap 5", "UI, autenticação, dashboard e API")
-        Container(api, "REST API", "Django REST Framework", "Exposição programática versionada")
-        Container(service, "Application Layer", "Python 3.13", "Casos de uso, serviços e orquestração")
-        Container(driver, "Driver Layer", "Python 3.13", "Abstrações por fabricante e orquestração de comandos")
-        Container(parser, "Parser Layer", "Python 3.13", "Conversão de CLI em objetos de domínio")
-        ContainerDb(db, "Relational Database", "SQLite/PostgreSQL", "Persistência do sistema")
-    }
-    System_Ext(netdev, "Network Devices", "AP130 e futuros vendors")
-
-    Rel(user, web, "Usa via navegador")
-    Rel(user, api, "Consome via cliente HTTP")
-    Rel(web, service, "Invoca")
-    Rel(api, service, "Invoca")
-    Rel(service, db, "Lê/escreve")
-    Rel(service, driver, "Orquestra coleta")
-    Rel(driver, netdev, "Conecta via SSH")
-    Rel(driver, parser, "Usa")
-    Rel(parser, service, "Retorna objetos estruturados")
-```
-
-## Diagrama de componentes
-
-```mermaid
-flowchart LR
-    subgraph Presentation
-        V1[Dashboard Views]
-        V2[Device Views]
-        V3[API ViewSets]
-        S1[Serializers/Forms]
-    end
-
-    subgraph Application
-        A1[DeviceService]
-        A2[SnapshotService]
-        A3[CredentialService]
-        A4[EventService]
-    end
-
-    subgraph Persistence
-        R1[DeviceRepository]
-        R2[SnapshotRepository]
-        R3[EventRepository]
-        R4[CredentialRepository]
-    end
-
-    subgraph Integration
-        D1[BaseDriver]
-        D2[AP130Driver]
-        SSH[SSH Gateway]
-        P1[SystemInfoParser]
-        P2[InterfaceParser]
-        P3[ClientParser]
-    end
-
-    V1 --> A1
-    V1 --> A2
-    V2 --> A1
-    V3 --> A1
-    V3 --> A2
-    S1 --> A1
-    A1 --> R1
-    A2 --> R2
-    A2 --> D1
-    A3 --> R4
-    A4 --> R3
-    D1 --> D2
-    D2 --> SSH
-    D2 --> P1
-    D2 --> P2
-    D2 --> P3
-```
-
-## Diagrama de implantação
+## 4. Direção de dependências
 
 ```mermaid
 flowchart TD
-    U[Browser] --> RP[Reverse Proxy]
-    RP --> APP[Django Application Container]
-    APP --> DB[(PostgreSQL)]
-    APP --> SSHNET[Managed Network Devices via SSH]
-    CI[GitHub Actions] --> REG[Container Registry]
-    REG --> APP
+    P[Presentation] --> A[Application Services]
+    A --> D[Domain Contracts]
+    A --> R[Repository Contracts]
+    A --> G[Driver Registry]
+    R --> I[Infrastructure Repositories]
+    G --> V[Vendor Drivers]
+    V --> S[SSH Gateway]
+    V --> PA[Parsers]
+    I --> O[ORM/Database]
+    PA --> D
 ```
 
-## Trade-offs principais
+A infraestrutura implementa contratos; regras de negócio não devem depender diretamente de detalhes externos.
 
-### Camadas explícitas versus velocidade bruta inicial
+## 5. Fluxos arquiteturais
 
-Criar serviços, repositórios, drivers e parsers desde o início custa mais do que concentrar lógica em views e models. Mesmo assim, o projeto exige essa disciplina porque o domínio multi-vendor, o parsing textual e a coleta remota criam complexidade real cedo demais para tolerar atalhos sem dívida arquitetural severa.
+### 5.1 Leitura e coleta
 
-### Django monolítico versus microsserviços
+```text
+View/API
+→ SnapshotService
+→ DeviceRepository
+→ DriverRegistry
+→ VendorDriver
+→ SSHGateway
+→ Parser
+→ Domain Objects
+→ SnapshotRepository
+→ EventRepository
+→ View/API
+```
 
-Um monólito modular foi escolhido para a Fase 0 por reduzir complexidade operacional, facilitar testes integrados e acelerar governança de domínio. O trade-off é menor independência de deploy por componente, mas isso é aceitável enquanto o produto valida o núcleo funcional.
+### 5.2 Configuração
 
-### SSH síncrono na fase inicial versus fila assíncrona desde o início
+```text
+View/API
+→ ConfigurationService
+→ Authorization
+→ Capability Check
+→ Current State Reader
+→ Diff Builder
+→ Confirmation
+→ VendorDriver
+→ SSHGateway
+→ Parser/Verification
+→ ConfigurationSnapshot
+→ AuditEvent
+→ View/API
+```
 
-A Fase 0 pode operar com coleta síncrona controlada e jobs persistidos sem exigir Redis imediatamente, o que simplifica bootstrap. O trade-off é throughput menor em cenários massivos; por isso a documentação preserva uma rota clara para futuras execuções assíncronas com Redis e scheduler dedicado.
+### 5.3 Mudança de IP ou VLAN
 
-## Restrições não negociáveis
+```text
+Request
+→ NetworkConfigurationService
+→ Validate New State
+→ Create Backup
+→ Apply Through Driver
+→ Mark Reconnecting
+→ Discover/Reopen Session
+→ Verify New Endpoint
+→ Update Device Inventory
+→ Persist Result
+→ Audit
+```
 
-- Nenhum código poderá depender semanticamente do AP130 fora do driver e parser específicos.
-- Nenhuma view poderá acessar model manager ou queryset diretamente.
-- Nenhum parser poderá abrir sessão SSH ou persistir estado.
-- Nenhum driver poderá construir resposta HTML ou serialização REST.
-- Credenciais nunca poderão ser exibidas em texto claro após persistência.
-- Logs nunca poderão vazar segredo, senha, chave privada ou comando sensível com material secreto embutido.
+### 5.4 Diagnóstico
 
-## Evolução prevista
+```text
+View/API
+→ DiagnosticService
+→ Authorization
+→ Capability Check
+→ Driver ou Server Diagnostic Adapter
+→ Normalized Diagnostic Result
+→ Audit/History
+→ View/API
+```
 
-A arquitetura já antecipa:
+O resultado deve indicar se o teste foi executado no servidor ou no dispositivo.
 
-- inclusão de múltiplos vendors;
-- scheduler persistido;
-- cache seletivo;
-- API pública versionada;
-- coletas em background;
-- observabilidade mais completa;
-- aumento gradual do rigor de segurança e compliance.
+### 5.5 Operação sobre cliente
 
-Essa antecipação deve orientar a modelagem, mas não justificar complexidade prematura onde YAGNI indicar postergação.
+```text
+View/API
+→ ClientOperationService
+→ Authorization
+→ Capability Check
+→ Confirmation
+→ VendorDriver.disconnect_client()
+→ Verify Client State
+→ Event/Audit
+→ View/API
+```
+
+## 6. Multi-vendor
+
+A arquitetura utiliza quatro pilares:
+
+1. Device com vendor, plataforma, modelo e firmware observados.
+2. Driver base com operações de alto nível.
+3. Parsers separados por comando e contexto.
+4. Services sem semântica hardcoded de vendor.
+
+Adicionar um vendor deve envolver:
+
+- identificar modelo e capabilities;
+- implementar driver concreto;
+- implementar parsers;
+- registrar driver;
+- criar fixtures;
+- criar testes unitários, integração e operação;
+- documentar limitações.
+
+### 6.1 Capability matrix
+
+```python
+class DeviceCapabilities:
+    read_system_info: bool
+    read_interfaces: bool
+    read_clients: bool
+    read_ssids: bool
+    read_radios: bool
+    read_logs: bool
+    read_full_config: bool
+    configure_ssid: bool
+    configure_radio: bool
+    configure_network: bool
+    configure_vlan: bool
+    reboot: bool
+    reset_config: bool
+    factory_reset: bool
+    export_config: bool
+    import_config: bool
+    ping: bool
+    traceroute: bool
+    disconnect_client: bool
+    cli_session: bool
+```
+
+Capabilities podem variar por modelo e firmware. O registry deve ser capaz de resolver o driver correto para os metadados disponíveis.
+
+### 6.2 AP130
+
+O AP130 pode exigir menus interativos, prompts, confirmação, múltiplas etapas e reconexão. Essa complexidade fica confinada ao driver, ao gateway de sessão e aos parsers próprios.
+
+O domínio não deve saber se o driver executa um comando único ou uma sequência de comandos.
+
+### 6.3 GWN7600
+
+O GWN7600 utiliza parsers e comandos específicos. O suporte deve declarar apenas capabilities comprovadas pelo equipamento. A ausência de uma operação deve ser representada como `CapabilityNotSupported`, não como lista vazia ou sucesso artificial.
+
+## 7. Drivers
+
+Drivers podem:
+
+- selecionar comandos controlados;
+- executar sequências CLI;
+- tratar prompts e menus;
+- chamar parsers;
+- devolver objetos de domínio;
+- verificar resultado específico;
+- controlar reconexão específica.
+
+Drivers não podem:
+
+- consultar ORM;
+- autorizar usuário;
+- renderizar HTML;
+- persistir diretamente;
+- montar shell arbitrário sem política;
+- conter regra geral do produto.
+
+## 8. Parsers
+
+Parsers recebem saída bruta, contexto e metadados e retornam objetos de domínio ou erro semântico.
+
+Características obrigatórias:
+
+- determinismo;
+- testes com fixtures;
+- validação de campos críticos;
+- tratamento explícito de saída incompleta;
+- distinção entre ausência esperada e formato inválido;
+- preservação de raw quando necessário.
+
+Parsers nunca abrem conexão, executam comandos ou persistem.
+
+## 9. Repositories
+
+Repositories isolam ORM e consultas.
+
+Responsabilidades:
+
+- persistência de dispositivos;
+- credenciais;
+- snapshots;
+- interfaces;
+- clientes;
+- eventos;
+- operações;
+- configurações;
+- auditoria;
+- consultas agregadas do dashboard.
+
+Repositories não devem executar SSH, interpretar CLI ou aplicar autorização.
+
+## 10. Operações e estados
+
+Operações de alteração devem usar estados explícitos:
+
+```text
+pending
+validating
+awaiting_confirmation
+executing
+reconnecting
+verifying
+succeeded
+partially_succeeded
+failed
+timeout
+cancelled
+```
+
+O resultado deve incluir operation id, device, usuário, capability, timestamps, mensagem, erro, backup, snapshot e correlation id.
+
+## 11. Segurança arquitetural
+
+- autorização separada por capability;
+- confirmação para alterações;
+- auditoria imutável;
+- secrets mascarados;
+- comandos controlados;
+- timeout e retry limitados;
+- host key policy;
+- backup antes de operações destrutivas;
+- validação pós-aplicação;
+- controle de acesso a logs e configuração completa.
+
+## 12. Dashboard
+
+O dashboard consome services e repositories. Ele não acessa SSH.
+
+Métricas podem incluir:
+
+- APs online/offline;
+- clientes;
+- SSIDs;
+- rádios;
+- upload/download;
+- top clientes;
+- top SSIDs;
+- clientes com pior sinal;
+- falhas de coleta;
+- eventos;
+- última atualização.
+
+Cada métrica deve possuir janela, origem e timestamp.
+
+## 13. API e UI
+
+API e UI devem utilizar os mesmos contratos de aplicação. A API deve retornar:
+
+- dados normalizados;
+- capabilities;
+- estados de operação;
+- erros semânticos;
+- timestamps;
+- origem dos diagnósticos;
+- segredos sempre mascarados.
+
+## 14. Persistência
+
+SQLite é usado no desenvolvimento e PostgreSQL em produção.
+
+Devem ser considerados:
+
+- constraints;
+- índices para device/time/vendor/status;
+- JSON para payload/raw controlado;
+- retenção de snapshots e logs;
+- diferenças entre engines;
+- migrações reversíveis quando possível.
+
+O dashboard deve usar consultas agregadas por repository. Redis não é requisito estrutural da primeira execução.
+
+## 15. Observabilidade
+
+Logs estruturados devem incluir:
+
+- timestamp;
+- nível;
+- device;
+- vendor;
+- operação;
+- capability;
+- correlation id;
+- duração;
+- resultado;
+- categoria do erro.
+
+Segredos e payloads sensíveis devem ser mascarados.
+
+## 16. Testes arquiteturais
+
+A suíte deve impedir:
+
+- ORM em views;
+- SSH no dashboard;
+- parser importando transporte;
+- driver persistindo diretamente;
+- service emitindo comandos específicos de vendor;
+- operação sem capability;
+- operação destrutiva sem confirmação;
+- segredo em resposta;
+- atualização de IP sem reconexão e verificação.
+
+## 17. Evolução
+
+A arquitetura deixa fronteiras para:
+
+- scheduler;
+- execução assíncrona;
+- Redis;
+- plugins;
+- novos transportes como SNMP, NETCONF ou gNMI;
+- novos vendors.
+
+Esses componentes não devem ser introduzidos antes de os contratos atuais estarem estabilizados.
